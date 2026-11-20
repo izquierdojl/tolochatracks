@@ -1,0 +1,151 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
+enum PermisoUbicacion {
+  concedido,
+  denegado,
+  denegadoSiempre,
+  servicioDesactivado,
+  error,
+}
+
+@immutable
+class PuntoGps {
+  const PuntoGps({
+    required this.latitud,
+    required this.longitud,
+    required this.tiempo,
+    this.altitud,
+    this.precision,
+    this.velocidad,
+    this.rumbo,
+  });
+
+  final double latitud;
+  final double longitud;
+  final DateTime tiempo;
+  final double? altitud;
+  final double? precision;
+  final double? velocidad;
+  final double? rumbo;
+}
+
+abstract interface class ServicioUbicacion {
+  Future<PermisoUbicacion> asegurarPermiso();
+  Future<bool> servicioActivo();
+  Future<PuntoGps?> posicionActual();
+  Stream<PuntoGps> posiciones();
+  Future<void> abrirAjustesPermiso();
+  Future<void> abrirAjustesUbicacion();
+}
+
+class ServicioUbicacionGeolocator implements ServicioUbicacion {
+  const ServicioUbicacionGeolocator();
+
+  @override
+  Future<PermisoUbicacion> asegurarPermiso() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return PermisoUbicacion.servicioDesactivado;
+      }
+      var permiso = await Geolocator.checkPermission();
+      if (permiso == LocationPermission.denied) {
+        permiso = await Geolocator.requestPermission();
+      }
+      if (permiso == LocationPermission.deniedForever) {
+        return PermisoUbicacion.denegadoSiempre;
+      }
+      if (permiso == LocationPermission.denied ||
+          permiso == LocationPermission.unableToDetermine) {
+        return PermisoUbicacion.denegado;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return PermisoUbicacion.servicioDesactivado;
+      }
+      return PermisoUbicacion.concedido;
+    } on Object {
+      return PermisoUbicacion.error;
+    }
+  }
+
+  @override
+  Future<bool> servicioActivo() async {
+    try {
+      return await Geolocator.isLocationServiceEnabled();
+    } on Object {
+      return false;
+    }
+  }
+
+  @override
+  Future<PuntoGps?> posicionActual() async {
+    try {
+      final posicion = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      return _convertir(posicion);
+    } on Object {
+      try {
+        final ultima = await Geolocator.getLastKnownPosition();
+        return ultima == null ? null : _convertir(ultima);
+      } on Object {
+        return null;
+      }
+    }
+  }
+
+  @override
+  Stream<PuntoGps> posiciones() {
+    final LocationSettings ajustes;
+    if (Platform.isAndroid) {
+      ajustes = AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 2,
+        intervalDuration: const Duration(seconds: 2),
+        forceLocationManager: true,
+        useMSLAltitude: true,
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'TolochaTracks',
+          notificationText: 'Grabando tu ruta en segundo plano',
+          notificationChannelName: 'Grabación de rutas',
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
+      );
+    } else {
+      ajustes = const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 2,
+      );
+    }
+    return Geolocator.getPositionStream(locationSettings: ajustes)
+        .map(_convertir);
+  }
+
+  @override
+  Future<void> abrirAjustesPermiso() => Geolocator.openAppSettings();
+
+  @override
+  Future<void> abrirAjustesUbicacion() => Geolocator.openLocationSettings();
+
+  PuntoGps _convertir(Position posicion) {
+    final ahora = DateTime.now();
+    final tiempo = posicion.timestamp;
+    return PuntoGps(
+      latitud: posicion.latitude,
+      longitud: posicion.longitude,
+      tiempo: tiempo.isAfter(ahora.subtract(const Duration(minutes: 5)))
+          ? tiempo
+          : ahora,
+      altitud: posicion.altitude,
+      precision: posicion.accuracy,
+      velocidad: posicion.speed >= 0 ? posicion.speed : null,
+      rumbo: posicion.heading >= 0 ? posicion.heading : null,
+    );
+  }
+}

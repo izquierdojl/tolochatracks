@@ -26,7 +26,7 @@ grabar y olvidarse del móvil.
 | Lenguaje | Dart estricto con `flutter_lints`; `dart format` como formateador. |
 | Plataforma | **Solo Android (APK)**. No hay build de escritorio ni iOS/web. |
 | Estado | `provider` (suficiente para el alcance; sin gestores complejos). |
-| Ubicación | `geolocator` con GPS de alta precisión y servicio en primer plano para seguir grabando con la pantalla apagada. |
+| Ubicación | `geolocator` con GPS de alta precisión, `LocationManager` de Android (sin depender de Play Services) y servicio en primer plano para seguir grabando con la pantalla apagada. |
 | Mapas | `flutter_map` + `latlong2` con teselas de OpenStreetMap, OpenTopoMap y CyclOSM. Servicio opcional y desactivable. |
 | Persistencia | Archivos JSON internos en el directorio de documentos de la app (una sesión por archivo) con `path_provider`. Ajustes en `shared_preferences`. |
 | Exportación | GPX 1.1 y JSON a un directorio elegido con el selector SAF de Android (permiso persistente). |
@@ -73,7 +73,8 @@ decisión explícita del usuario y actualización de este documento.
 - **Android** es la única plataforma. Permisos: ubicación precisa (`ACCESS_FINE_LOCATION`
   y `ACCESS_COARSE_LOCATION`), servicio en primer plano de ubicación
   (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`), notificaciones
-  (`POST_NOTIFICATIONS`) e INTERNET para las teselas. Nada más.
+  (`POST_NOTIFICATIONS`), `WAKE_LOCK` para el servicio en primer plano e INTERNET para
+  las teselas. Nada más.
 - El permiso de ubicación se pide **solo al iniciar la primera grabación**; si se deniega,
   se explica en español y se ofrece abrir los ajustes.
 - La grabación usa un servicio en primer plano con notificación persistente; no se
@@ -175,6 +176,10 @@ decisión explícita del usuario y actualización de este documento.
 6. Versión `0.x` hasta que el usuario decida `1.0.0`.
 7. La configuración personalizada de OpenSpec no puede perderse: el marcador y el script
    de comprobación son parte de la CI.
+8. Flutter se actualiza solo con un change `infra` que fije la nueva versión en CI y en
+   el SDK local, ejecute `npm run verify` y compile el APK. Los avisos de `pub` sobre
+   dependencias transitivas no justifican cambiar el SDK: se revisan con
+   `flutter pub outdated` y se actualizan solo las que permitan las restricciones.
 
 ## 12. Hoja de ruta inmediata
 
