@@ -120,18 +120,21 @@ class AcumuladorRuta {
 EstadisticasRuta calcularEstadisticas(
   List<PuntoRuta> puntos, {
   required Duration duracionActiva,
+  DateTime? inicio,
   DateTime? fin,
 }) {
   final acumulador = AcumuladorRuta();
   for (final punto in puntos) {
     acumulador.agregar(punto);
   }
-  final inicio = puntos.isEmpty ? null : puntos.first.tiempo;
-  final duracionTotal = fin != null && inicio != null
-      ? fin.difference(inicio)
-      : puntos.length >= 2
-      ? puntos.last.tiempo.difference(inicio!)
-      : Duration.zero;
+  final inicioReal = inicio ?? (puntos.isEmpty ? null : puntos.first.tiempo);
+  var duracionTotal = Duration.zero;
+  if (fin != null && inicioReal != null) {
+    duracionTotal = fin.difference(inicioReal);
+  } else if (puntos.length >= 2) {
+    duracionTotal = puntos.last.tiempo.difference(puntos.first.tiempo);
+  }
+  if (duracionTotal.isNegative) duracionTotal = Duration.zero;
   final segundos = duracionActiva.inMilliseconds / 1000.0;
   final velocidadMedia = segundos > 0
       ? acumulador.distanciaMetros / segundos

@@ -162,6 +162,24 @@ void main() {
       expect(estadisticas.desnivelNegativo, lessThan(2));
     });
 
+    test('el tiempo total usa el inicio de la sesión, no el primer punto', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio.add(const Duration(seconds: 10))),
+        punto(
+          latSevilla + 100 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 2)),
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 2),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 3)),
+      );
+      expect(estadisticas.duracionTotal, const Duration(minutes: 3));
+    });
+
     test('calcula el ritmo medio por kilómetro', () {
       final puntos = [
         punto(latSevilla, lonSevilla, inicio),

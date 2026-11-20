@@ -12,6 +12,7 @@ class RepositorioSesionesFalso implements RepositorioSesiones {
   Sesion? borrador;
   bool fallarGuardado = false;
   bool fallarListado = false;
+  bool fallarEliminar = false;
 
   List<Sesion> get sesiones => List.unmodifiable(_sesiones);
 
@@ -40,6 +41,7 @@ class RepositorioSesionesFalso implements RepositorioSesiones {
 
   @override
   Future<void> eliminar(String id) async {
+    if (fallarEliminar) throw const FileSystemExceptionFalso();
     _sesiones.removeWhere((sesion) => sesion.id == id);
   }
 

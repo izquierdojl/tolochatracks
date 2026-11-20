@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/calculos/calculos_ruta.dart';
 import '../../../core/data/repositorio_sesiones.dart';
+import '../../../core/models/actividad.dart';
 import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 
@@ -13,12 +14,29 @@ class HistorialController extends ChangeNotifier {
   final RepositorioSesiones repositorio;
   EstadoHistorial _estado = EstadoHistorial.cargando;
   List<Sesion> _sesiones = [];
+  Actividad? _filtro;
   String? _error;
   final Map<String, EstadisticasRuta> _cacheEstadisticas = {};
 
   EstadoHistorial get estado => _estado;
   List<Sesion> get sesiones => List.unmodifiable(_sesiones);
+  Actividad? get filtro => _filtro;
   String? get error => _error;
+
+  List<Sesion> get sesionesFiltradas => _filtro == null
+      ? List.unmodifiable(_sesiones)
+      : List.unmodifiable(
+          _sesiones.where((sesion) => sesion.actividad == _filtro),
+        );
+
+  bool get filtroSinResultados =>
+      _filtro != null && sesionesFiltradas.isEmpty && _sesiones.isNotEmpty;
+
+  void cambiarFiltro(Actividad? actividad) {
+    if (_filtro == actividad) return;
+    _filtro = actividad;
+    notifyListeners();
+  }
 
   Future<void> cargar() async {
     _estado = EstadoHistorial.cargando;
@@ -45,17 +63,18 @@ class HistorialController extends ChangeNotifier {
       () => calcularEstadisticas(
         sesion.puntos,
         duracionActiva: sesion.duracionActiva,
+        inicio: sesion.inicio,
         fin: sesion.fin,
       ),
     );
   }
 
-  double get distanciaTotalMetros => _sesiones.fold(
+  double get distanciaTotalMetros => sesionesFiltradas.fold(
     0,
     (total, sesion) => total + estadisticas(sesion).distanciaMetros,
   );
 
-  Duration get duracionTotal => _sesiones.fold(
+  Duration get duracionTotal => sesionesFiltradas.fold(
     Duration.zero,
     (total, sesion) => total + sesion.duracionActiva,
   );

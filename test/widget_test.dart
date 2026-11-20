@@ -89,7 +89,7 @@ void main() {
   ) async {
     await bombearApp(tester);
 
-    expect(find.text('Correr'), findsOneWidget);
+    expect(find.text('Correr'), findsWidgets);
     expect(find.text('Senderismo'), findsOneWidget);
     expect(find.text('Bicicleta'), findsOneWidget);
     expect(find.text('Empezar'), findsOneWidget);
@@ -180,7 +180,119 @@ void main() {
     await tester.tap(find.text('Historial'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Correr'), findsOneWidget);
+    expect(find.text('Correr'), findsWidgets);
     expect(find.text('1,0 km'), findsWidgets);
+  });
+
+  testWidgets('abre el detalle con las estadísticas de la sesión', (
+    tester,
+  ) async {
+    final inicio = DateTime(2026, 11, 20, 18);
+    final sesion = Sesion(
+      id: 'detalle',
+      actividad: Actividad.senderismo,
+      inicio: inicio,
+      fin: inicio.add(const Duration(minutes: 40)),
+      duracionActiva: const Duration(minutes: 38),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          altitud: 100,
+          precision: 5,
+        ),
+        PuntoRuta(
+          latitud: 37.3981,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 38)),
+          altitud: 160,
+          precision: 5,
+        ),
+      ],
+    );
+    await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Distancia'), findsOneWidget);
+    expect(find.text('Tiempo activo'), findsOneWidget);
+    expect(find.text('Desnivel positivo'), findsOneWidget);
+    expect(find.text('Altitud mínima'), findsOneWidget);
+    expect(find.byTooltip('Eliminar ruta'), findsOneWidget);
+  });
+
+  testWidgets('muestra — cuando la sesión no tiene altitudes', (tester) async {
+    final inicio = DateTime(2026, 11, 20, 18);
+    final sesion = Sesion(
+      id: 'sin-altitud',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 20),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+        ),
+      ],
+    );
+    await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('—'), findsWidgets);
+  });
+
+  testWidgets('elimina una ruta desde el detalle', (tester) async {
+    final inicio = DateTime(2026, 11, 20, 18);
+    final sesion = Sesion(
+      id: 'eliminar',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 20),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+        ),
+      ],
+    );
+    await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Eliminar ruta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Todavía no hay rutas'), findsOneWidget);
   });
 }

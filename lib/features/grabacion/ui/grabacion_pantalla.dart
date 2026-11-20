@@ -584,6 +584,7 @@ class _UltimaSesion extends StatelessWidget {
     final estadisticas = calcularEstadisticas(
       sesion.puntos,
       duracionActiva: sesion.duracionActiva,
+      inicio: sesion.inicio,
       fin: sesion.fin,
     );
     return Card(
@@ -666,6 +667,7 @@ Future<void> _mostrarResumen(
       final estadisticas = calcularEstadisticas(
         sesion.puntos,
         duracionActiva: sesion.duracionActiva,
+        inicio: sesion.inicio,
         fin: sesion.fin,
       );
       return AlertDialog(
