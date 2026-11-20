@@ -5,9 +5,11 @@ import '../../../app/shell/seccion_app.dart';
 import '../../../app/shell/shell_controller.dart';
 import '../../../app/theme/actividad_visual.dart';
 import '../../../core/calculos/calculos_ruta.dart';
+import '../../../core/models/proveedor_mapas.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
 import '../../sesiones/ui/historial_controller.dart';
+import '../../configuracion/ui/configuracion_controller.dart';
 import '../../sesiones/ui/widgets/mapa_ruta.dart';
 import 'grabacion_controller.dart';
 import 'widgets/estadisticas_grabacion.dart';
@@ -19,6 +21,9 @@ class GrabacionPantalla extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controlador = context.watch<GrabacionController>();
+    final proveedorMapas = context
+        .watch<ConfiguracionController>()
+        .proveedorMapas;
     if (controlador.estado == EstadoGrabacion.guardando) {
       return const _Guardando();
     }
@@ -38,7 +43,7 @@ class GrabacionPantalla extends StatelessWidget {
         if (controlador.estado == EstadoGrabacion.iniciando)
           const _PreparandoGps()
         else if (enCurso)
-          _EnCurso(controlador: controlador)
+          _EnCurso(controlador: controlador, proveedorMapas: proveedorMapas)
         else
           _Inicio(controlador: controlador),
       ],
@@ -131,9 +136,10 @@ class _Inicio extends StatelessWidget {
 }
 
 class _EnCurso extends StatelessWidget {
-  const _EnCurso({required this.controlador});
+  const _EnCurso({required this.controlador, required this.proveedorMapas});
 
   final GrabacionController controlador;
+  final ProveedorMapas proveedorMapas;
 
   @override
   Widget build(BuildContext context) {
@@ -223,6 +229,15 @@ class _EnCurso extends StatelessWidget {
             texto:
                 'La grabación está en pausa. El tiempo y la distancia no '
                 'avanzan.',
+          ),
+        ],
+        if (controlador.avisoNotificaciones) ...[
+          const SizedBox(height: 12),
+          _Banda(
+            icono: Icons.notifications_off_outlined,
+            texto:
+                'Notificaciones desactivadas: la grabación sigue, pero el '
+                'aviso del servicio puede no verse.',
           ),
         ],
         if (conError && controlador.mensajeError != null) ...[

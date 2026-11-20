@@ -1,10 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../configuracion/ui/configuracion_controller.dart';
+import '../../../core/models/proveedor_mapas.dart';
+import '../../../core/servicios/bateria.dart';
+import 'acerca_de_pantalla.dart';
+import 'configuracion_controller.dart';
 
-class ConfiguracionPantalla extends StatelessWidget {
+class ConfiguracionPantalla extends StatefulWidget {
   const ConfiguracionPantalla({super.key});
+
+  @override
+  State<ConfiguracionPantalla> createState() => _ConfiguracionPantallaState();
+}
+
+class _ConfiguracionPantallaState extends State<ConfiguracionPantalla>
+    with WidgetsBindingObserver {
+  final ServicioBateria _bateria = const ServicioBateriaCanal();
+  late Future<bool?> _exentoBateria;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _exentoBateria = _bateria.estaExento();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      setState(() => _exentoBateria = _bateria.estaExento());
+    }
+  }
+
+  Future<void> _pedirExencionBateria() async {
+    await _bateria.pedirExencion();
+    if (!mounted) return;
+    setState(() => _exentoBateria = _bateria.estaExento());
+  }
 
   Future<void> _elegirCarpeta(BuildContext context) async {
     final configuracion = context.read<ConfiguracionController>();
@@ -152,6 +190,123 @@ class ConfiguracionPantalla extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
+        _Seccion(titulo: 'Mapas'),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<ProveedorMapas>(
+                  initialValue: configuracion.proveedorMapas,
+                  decoration: const InputDecoration(
+                    labelText: 'Proveedor de teselas',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final proveedor in ProveedorMapas.values)
+                      DropdownMenuItem(
+                        value: proveedor,
+                        child: Text(proveedor.etiqueta),
+                      ),
+                  ],
+                  onChanged: (proveedor) {
+                    if (proveedor != null) {
+                      configuracion.cambiarProveedorMapas(proveedor);
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  configuracion.proveedorMapas.activo
+                      ? 'Las teselas se descargan del proveedor elegido y '
+                            'necesitan conexión. La ruta se guarda igualmente '
+                            'sin mapas.'
+                      : 'Los mapas están desactivados: no se descargan teselas. '
+                            'La grabación, las estadísticas y la exportación '
+                            'siguen funcionando.',
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: tema.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _Seccion(titulo: 'Batería'),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.battery_saver, color: tema.colorScheme.tertiary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Grabación en segundo plano',
+                      style: tema.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Android puede limitar el GPS con la pantalla apagada. '
+                  'Permitir que TolochaTracks funcione sin restricciones mejora '
+                  'la fiabilidad de las rutas largas; también puede aumentar el '
+                  'consumo de batería.',
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: tema.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FutureBuilder<bool?>(
+                  future: _exentoBateria,
+                  builder: (context, snapshot) {
+                    final exento = snapshot.data;
+                    final comprobando =
+                        snapshot.connectionState == ConnectionState.waiting;
+                    final texto = comprobando
+                        ? 'Comprobando el estado…'
+                        : exento == true
+                        ? 'Permitido: Android no limitará la grabación.'
+                        : exento == false
+                        ? 'Optimizado por el sistema.'
+                        : 'No disponible en esta plataforma.';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(texto, style: tema.textTheme.bodyMedium),
+                        if (exento != true && !comprobando) ...[
+                          const SizedBox(height: 8),
+                          FilledButton.tonalIcon(
+                            onPressed: _pedirExencionBateria,
+                            icon: const Icon(Icons.battery_charging_full),
+                            label: const Text('Permitir sin restricciones'),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'En algunos fabricantes (Xiaomi, Huawei, Samsung…) también '
+                  'conviene permitir el inicio automático de la app en sus '
+                  'ajustes del sistema.',
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: tema.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
         _Seccion(titulo: 'Privacidad'),
         Card(
           child: ListTile(
@@ -160,6 +315,19 @@ class ConfiguracionPantalla extends StatelessWidget {
             subtitle: const Text(
               'No hay cuentas ni subida a servidores. Solo se accede a la red '
               'para las teselas del mapa, que puedes no usar.',
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _Seccion(titulo: 'Información'),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Acerca de TolochaTracks'),
+            subtitle: const Text('Versión, privacidad y licencias'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const AcercaDePantalla()),
             ),
           ),
         ),

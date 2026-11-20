@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tolochatracks/core/models/proveedor_mapas.dart';
 import 'package:tolochatracks/features/configuracion/data/configuracion_repositorio.dart';
 import 'package:tolochatracks/features/configuracion/ui/configuracion_controller.dart';
 
@@ -43,6 +44,27 @@ void main() {
     expect(segundo.tema, ThemeMode.dark);
     expect(segundo.tieneDirectorio, isTrue);
     expect(segundo.directorioExportacionNombre, 'Rutas');
+  });
+
+  test('persiste el proveedor de mapas', () async {
+    SharedPreferences.setMockInitialValues({});
+    final servicio = ServicioExportacionFalso();
+    final primero = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: servicio,
+    );
+    addTearDown(primero.dispose);
+    await primero.cargar();
+    expect(primero.proveedorMapas, ProveedorMapas.osm);
+    await primero.cambiarProveedorMapas(ProveedorMapas.openTopoMap);
+
+    final segundo = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: servicio,
+    );
+    addTearDown(segundo.dispose);
+    await segundo.cargar();
+    expect(segundo.proveedorMapas, ProveedorMapas.openTopoMap);
   });
 
   test('quitar la carpeta la olvida y persiste', () async {

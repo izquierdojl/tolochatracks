@@ -7,6 +7,7 @@ import '../../../core/data/repositorio_sesiones.dart';
 import '../../../core/models/actividad.dart';
 import '../../../core/models/punto_ruta.dart';
 import '../../../core/models/sesion.dart';
+import '../../../core/servicios/notificacion_ruta.dart';
 import '../../../core/servicios/ubicacion.dart';
 
 enum EstadoGrabacion {
@@ -22,11 +23,13 @@ class GrabacionController extends ChangeNotifier {
   GrabacionController({
     required this.ubicacion,
     required this.repositorio,
+    this.notificacion,
     DateTime Function()? ahora,
   }) : _ahora = ahora ?? DateTime.now;
 
   final ServicioUbicacion ubicacion;
   final RepositorioSesiones repositorio;
+  final ServicioNotificacionRuta? notificacion;
   final DateTime Function() _ahora;
 
   EstadoGrabacion _estado = EstadoGrabacion.inactivo;
@@ -47,6 +50,7 @@ class GrabacionController extends ChangeNotifier {
   bool _denegadoSiempre = false;
   bool _servicioDesactivado = false;
   bool _sinSenal = false;
+  bool _avisoNotificaciones = false;
   bool _errorGuardado = false;
   bool _guardandoBorrador = false;
   bool _disposed = false;
@@ -60,6 +64,7 @@ class GrabacionController extends ChangeNotifier {
   bool get denegadoSiempre => _denegadoSiempre;
   bool get servicioDesactivado => _servicioDesactivado;
   bool get sinSenal => _sinSenal;
+  bool get avisoNotificaciones => _avisoNotificaciones;
   bool get errorGuardado => _errorGuardado;
   List<PuntoRuta> get puntos => List.unmodifiable(_puntos);
   PuntoGps? get ultimaPosicion => _ultimaPosicion;
@@ -128,9 +133,13 @@ class GrabacionController extends ChangeNotifier {
     _denegadoSiempre = false;
     _servicioDesactivado = false;
     _errorGuardado = false;
+    _avisoNotificaciones = false;
     _sinSenal = true;
     notifyListeners();
 
+    final notificaciones = await ubicacion.prepararNotificaciones();
+    if (_disposed) return;
+    _avisoNotificaciones = !notificaciones;
     final permiso = await ubicacion.asegurarPermiso();
     if (_disposed) return;
     if (permiso != PermisoUbicacion.concedido) {
@@ -159,6 +168,7 @@ class GrabacionController extends ChangeNotifier {
     _ultimoAutoguardado = null;
     _sinSenal = true;
     _estado = EstadoGrabacion.grabando;
+    await notificacion?.iniciar();
     _iniciarTemporizador();
     try {
       _suscribir();
@@ -182,6 +192,7 @@ class GrabacionController extends ChangeNotifier {
     _sinSenal = false;
     _estado = EstadoGrabacion.pausado;
     notifyListeners();
+    await notificacion?.actualizar(pausado: true);
     await _guardarBorrador();
   }
 
@@ -194,6 +205,9 @@ class GrabacionController extends ChangeNotifier {
     _mensajeError = null;
     _errorGuardado = false;
     notifyListeners();
+    final notificaciones = await ubicacion.prepararNotificaciones();
+    if (_disposed) return;
+    _avisoNotificaciones = !notificaciones;
     final permiso = await ubicacion.asegurarPermiso();
     if (_disposed) return;
     if (permiso != PermisoUbicacion.concedido) {
@@ -207,6 +221,7 @@ class GrabacionController extends ChangeNotifier {
     _abrirTramo();
     _sinSenal = true;
     _estado = EstadoGrabacion.grabando;
+    await notificacion?.iniciar();
     _iniciarTemporizador();
     try {
       _suscribir();
@@ -237,6 +252,7 @@ class GrabacionController extends ChangeNotifier {
 
     if (_puntos.isEmpty || _inicio == null) {
       await _borrarBorradorSilencioso();
+      await notificacion?.detener();
       _resetear();
       _mensajeError =
           'No se ha registrado ninguna posición. No hay ruta que guardar.';
@@ -255,6 +271,7 @@ class GrabacionController extends ChangeNotifier {
     try {
       await repositorio.guardar(sesion);
       await repositorio.borrarBorrador();
+      await notificacion?.detener();
       _borrador = null;
       _ultimaSesion = sesion;
       _resetear();
@@ -277,6 +294,7 @@ class GrabacionController extends ChangeNotifier {
     await _suscripcion?.cancel();
     _suscripcion = null;
     await _borrarBorradorSilencioso();
+    await notificacion?.detener();
     _resetear();
     _borrador = null;
     notifyListeners();
@@ -456,6 +474,7 @@ class GrabacionController extends ChangeNotifier {
     _ultimoPuntoRecibido = null;
     _ultimoAutoguardado = null;
     _sinSenal = false;
+    _avisoNotificaciones = false;
     _mensajeError = null;
     _denegadoSiempre = false;
     _servicioDesactivado = false;
@@ -478,6 +497,11 @@ class GrabacionController extends ChangeNotifier {
     _disposed = true;
     _temporizador?.cancel();
     _suscripcion?.cancel();
+    if (_estado == EstadoGrabacion.grabando ||
+        _estado == EstadoGrabacion.pausado ||
+        _estado == EstadoGrabacion.error) {
+      unawaited(notificacion?.detener());
+    }
     super.dispose();
   }
 }

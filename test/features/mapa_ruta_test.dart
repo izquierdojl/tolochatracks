@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tolochatracks/core/models/proveedor_mapas.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/features/sesiones/ui/widgets/mapa_ruta.dart';
 import 'package:tolochatracks/app/theme/app_theme.dart';
@@ -17,6 +18,22 @@ void main() {
     await tester.pump();
 
     expect(find.text('Sin puntos GPS que mostrar'), findsOneWidget);
+    expect(find.text('© OpenStreetMap contributors'), findsNothing);
+  });
+
+  testWidgets('con mapas desactivados no dibuja ni pide teselas', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.claro,
+        home: const Scaffold(
+          body: MapaRuta(puntos: [], proveedor: ProveedorMapas.ninguno),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Mapas desactivados en Ajustes'), findsOneWidget);
     expect(find.text('© OpenStreetMap contributors'), findsNothing);
   });
 
@@ -50,6 +67,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
-    expect(find.text('Mapa OSM · conexión'), findsOneWidget);
+    expect(find.text('OpenStreetMap · conexión'), findsOneWidget);
   });
 }

@@ -4,10 +4,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/models/proveedor_mapas.dart';
 import '../../../../core/models/punto_ruta.dart';
 
-const _urlCopyrightOsm = 'https://www.openstreetmap.org/copyright';
-const _urlTeselasOsm = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const _paqueteApp = 'com.izquierdojl.tolochatracks';
 
 class MapaRuta extends StatefulWidget {
@@ -16,11 +15,13 @@ class MapaRuta extends StatefulWidget {
     required this.puntos,
     this.altura = 260,
     this.seguir = false,
+    this.proveedor = ProveedorMapas.osm,
   });
 
   final List<PuntoRuta> puntos;
   final double altura;
   final bool seguir;
+  final ProveedorMapas proveedor;
 
   @override
   State<MapaRuta> createState() => _MapaRutaState();
@@ -67,11 +68,10 @@ class _MapaRutaState extends State<MapaRuta> {
   }
 
   Future<void> _abrirCopyright() async {
+    final url = widget.proveedor.urlLicencia;
+    if (url == null) return;
     try {
-      await launchUrl(
-        Uri.parse(_urlCopyrightOsm),
-        mode: LaunchMode.externalApplication,
-      );
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } on Object {
       // Si no hay navegador, la atribución sigue visible en el mapa.
     }
@@ -80,6 +80,34 @@ class _MapaRutaState extends State<MapaRuta> {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    if (!widget.proveedor.activo) {
+      return Container(
+        height: widget.altura,
+        decoration: BoxDecoration(
+          color: tema.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.map_outlined,
+                size: 36,
+                color: tema.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Mapas desactivados en Ajustes',
+                style: tema.textTheme.bodySmall?.copyWith(
+                  color: tema.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     if (widget.puntos.isEmpty) {
       return Container(
         height: widget.altura,
@@ -160,9 +188,10 @@ class _MapaRutaState extends State<MapaRuta> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: _urlTeselasOsm,
+                  urlTemplate: widget.proveedor.urlTemplate!,
+                  subdomains: widget.proveedor.subdominios,
                   userAgentPackageName: _paqueteApp,
-                  maxNativeZoom: 19,
+                  maxNativeZoom: widget.proveedor.maxNativeZoom,
                 ),
                 if (coordenadas.length > 1)
                   PolylineLayer(
@@ -190,7 +219,7 @@ class _MapaRutaState extends State<MapaRuta> {
                     child: Align(
                       alignment: Alignment.bottomLeft,
                       child: _EtiquetaMapa(
-                        texto: 'Mapa OSM · conexión',
+                        texto: '${widget.proveedor.etiqueta} · conexión',
                         icono: Icons.wifi_outlined,
                       ),
                     ),
@@ -208,7 +237,7 @@ class _MapaRutaState extends State<MapaRuta> {
                           vertical: 3,
                         ),
                         child: Text(
-                          '© OpenStreetMap contributors',
+                          widget.proveedor.atribucion,
                           style: tema.textTheme.labelSmall?.copyWith(
                             color: tema.colorScheme.onSurface,
                           ),

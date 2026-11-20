@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'app/shell/shell_pantalla.dart';
 import 'app/theme/app_theme.dart';
 import 'core/servicios/exportacion.dart';
+import 'core/servicios/notificacion_ruta.dart';
 import 'core/servicios/ubicacion.dart';
 import 'features/configuracion/data/configuracion_repositorio.dart';
 import 'features/configuracion/ui/configuracion_controller.dart';
@@ -25,10 +26,23 @@ Future<void> main() async {
     configuracion: configuracion,
   );
   final historial = HistorialController(repositorio: repositorio);
+  final notificacion = ServicioNotificacionRutaCanal();
   final grabacion = GrabacionController(
     ubicacion: const ServicioUbicacionGeolocator(),
     repositorio: repositorio,
+    notificacion: notificacion,
   );
+  notificacion.acciones.listen((accion) async {
+    switch (accion) {
+      case AccionNotificacion.pausar:
+        await grabacion.pausar();
+      case AccionNotificacion.reanudar:
+        await grabacion.reanudar();
+      case AccionNotificacion.detener:
+        final sesion = await grabacion.finalizar();
+        if (sesion != null) await historial.cargar();
+    }
+  });
   await Future.wait([
     historial.cargar(),
     grabacion.inicializar(),

@@ -55,6 +55,7 @@ android {
 
 dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.core:core-ktx:1.16.0")
 }
 
 kotlin {

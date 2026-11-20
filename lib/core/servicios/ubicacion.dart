@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 enum PermisoUbicacion {
@@ -33,6 +34,7 @@ class PuntoGps {
 }
 
 abstract interface class ServicioUbicacion {
+  Future<bool> prepararNotificaciones();
   Future<PermisoUbicacion> asegurarPermiso();
   Future<bool> servicioActivo();
   Future<PuntoGps?> posicionActual();
@@ -43,6 +45,22 @@ abstract interface class ServicioUbicacion {
 
 class ServicioUbicacionGeolocator implements ServicioUbicacion {
   const ServicioUbicacionGeolocator();
+
+  static const _canalPermisos = MethodChannel(
+    'com.izquierdojl.tolochatracks/permisos',
+  );
+
+  @override
+  Future<bool> prepararNotificaciones() async {
+    try {
+      final concedido = await _canalPermisos
+          .invokeMethod<bool>('pedirNotificaciones')
+          .timeout(const Duration(seconds: 30));
+      return concedido ?? true;
+    } on Object {
+      return true;
+    }
+  }
 
   @override
   Future<PermisoUbicacion> asegurarPermiso() async {
@@ -104,23 +122,16 @@ class ServicioUbicacionGeolocator implements ServicioUbicacion {
     final LocationSettings ajustes;
     if (Platform.isAndroid) {
       ajustes = AndroidSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 2,
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 3,
         intervalDuration: const Duration(seconds: 2),
         forceLocationManager: true,
         useMSLAltitude: true,
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'TolochaTracks',
-          notificationText: 'Grabando tu ruta en segundo plano',
-          notificationChannelName: 'Grabación de rutas',
-          enableWakeLock: true,
-          setOngoing: true,
-        ),
       );
     } else {
       ajustes = const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 2,
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 3,
       );
     }
     return Geolocator.getPositionStream(locationSettings: ajustes)

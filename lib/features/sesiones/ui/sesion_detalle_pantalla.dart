@@ -6,6 +6,7 @@ import '../../../core/calculos/calculos_ruta.dart';
 import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
+import '../../configuracion/ui/configuracion_controller.dart';
 import '../../exportacion/ui/acciones_exportacion.dart';
 import '../../exportacion/ui/exportacion_controller.dart';
 import 'historial_controller.dart';
@@ -95,6 +96,9 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final proveedorMapas = context
+        .watch<ConfiguracionController>()
+        .proveedorMapas;
     final sesion = widget.sesion;
     final usaRitmo = sesion.actividad.usaRitmo;
     final color = sesion.actividad.color(context);
@@ -180,7 +184,11 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
             ),
           ),
           const SizedBox(height: 16),
-          MapaRuta(puntos: sesion.puntos, altura: 280),
+          MapaRuta(
+            puntos: sesion.puntos,
+            altura: 280,
+            proveedor: proveedorMapas,
+          ),
           const SizedBox(height: 16),
           Card(
             child: Padding(

@@ -39,21 +39,25 @@ void main() {
   late Reloj reloj;
   late ServicioUbicacionFalso ubicacion;
   late RepositorioSesionesFalso repositorio;
+  late ServicioNotificacionRutaFalso notificacion;
   late GrabacionController controlador;
 
   setUp(() {
     reloj = Reloj(DateTime(2026, 11, 20, 18));
     ubicacion = ServicioUbicacionFalso();
     repositorio = RepositorioSesionesFalso();
+    notificacion = ServicioNotificacionRutaFalso();
     controlador = GrabacionController(
       ubicacion: ubicacion,
       repositorio: repositorio,
+      notificacion: notificacion,
       ahora: reloj.ahora,
     );
   });
 
   tearDown(() async {
     controlador.dispose();
+    await notificacion.dispose();
     await ubicacion.cerrar();
   });
 
@@ -79,6 +83,7 @@ void main() {
   test('graba puntos y acumula distancia y tiempo activo', () async {
     await iniciarConPunto();
     expect(controlador.estado, EstadoGrabacion.grabando);
+    expect(ubicacion.notificacionesPedidas, 1);
     expect(controlador.puntos, hasLength(1));
 
     reloj.avanzar(const Duration(seconds: 10));
@@ -280,6 +285,24 @@ void main() {
     await controlador.iniciar();
     expect(controlador.mensajeError, contains('sesión pendiente'));
     expect(controlador.estado, EstadoGrabacion.inactivo);
+  });
+
+  test('sincroniza el servicio de notificación con el estado', () async {
+    await iniciarConPunto();
+    expect(notificacion.inicios, 1);
+    await controlador.pausar();
+    expect(notificacion.ultimoPausado, isTrue);
+    await controlador.reanudar();
+    expect(notificacion.inicios, 2);
+    await controlador.finalizar();
+    expect(notificacion.detenciones, 1);
+  });
+
+  test('avisa si el permiso de notificaciones se deniega', () async {
+    ubicacion.notificacionesConcedidas = false;
+    await iniciarConPunto();
+    expect(controlador.avisoNotificaciones, isTrue);
+    expect(controlador.estado, EstadoGrabacion.grabando);
   });
 
   test('cambia de actividad solo cuando está inactivo', () async {

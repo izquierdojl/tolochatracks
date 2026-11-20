@@ -1,11 +1,13 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
 import 'package:tolochatracks/core/servicios/ubicacion.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tolochatracks/core/models/proveedor_mapas.dart';
 import 'package:tolochatracks/features/configuracion/data/configuracion_repositorio.dart';
 import 'package:tolochatracks/features/configuracion/ui/configuracion_controller.dart';
 import 'package:tolochatracks/features/exportacion/ui/exportacion_controller.dart';
@@ -48,6 +50,16 @@ class ControllersApp {
 }
 
 void main() {
+  setUp(() {
+    PackageInfo.setMockInitialValues(
+      appName: 'TolochaTracks',
+      packageName: 'com.izquierdojl.tolochatracks',
+      version: '0.1.0',
+      buildNumber: '1',
+      buildSignature: '',
+    );
+  });
+
   Future<ControllersApp> bombearApp(
     WidgetTester tester, {
     RepositorioSesionesFalso? repositorio,
@@ -465,5 +477,45 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(app.servicioExportacion.archivos, hasLength(2));
+  });
+
+  testWidgets('Acerca de muestra versión, privacidad y licencias', (
+    tester,
+  ) async {
+    await bombearApp(tester);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Acerca de TolochaTracks'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Acerca de TolochaTracks'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Versión 0.1.0 (1)'), findsOneWidget);
+    expect(find.text('Privacidad'), findsOneWidget);
+    expect(find.text('OpenStreetMap'), findsOneWidget);
+    expect(find.text('Repositorio del proyecto'), findsOneWidget);
+    expect(find.text('Tipografía Inter'), findsOneWidget);
+  });
+
+  testWidgets('Ajustes cambia el proveedor de mapas', (tester) async {
+    final app = await bombearApp(tester);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<ProveedorMapas>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OpenTopoMap').last);
+    await tester.pumpAndSettle();
+
+    expect(app.configuracion.proveedorMapas, ProveedorMapas.openTopoMap);
   });
 }
