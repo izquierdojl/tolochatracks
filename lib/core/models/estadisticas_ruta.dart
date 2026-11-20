@@ -1,6 +1,39 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
+class MuestraRuta {
+  const MuestraRuta(this.x, this.y);
+
+  final double x;
+  final double y;
+}
+
+@immutable
+class ParcialKm {
+  const ParcialKm({
+    required this.numero,
+    required this.distanciaMetros,
+    required this.duracion,
+    required this.velocidadMedia,
+  });
+
+  final int numero;
+  final double distanciaMetros;
+  final Duration duracion;
+  final double velocidadMedia;
+
+  bool get completo => (distanciaMetros - 1000).abs() < 1;
+}
+
+@immutable
+class DistanciaMinuto {
+  const DistanciaMinuto({required this.minuto, required this.metros});
+
+  final int minuto;
+  final double metros;
+}
+
+@immutable
 class EstadisticasRuta {
   const EstadisticasRuta({
     required this.distanciaMetros,
@@ -13,6 +46,11 @@ class EstadisticasRuta {
     required this.puntos,
     this.altitudMinima,
     this.altitudMaxima,
+    this.parciales = const [],
+    this.porMinuto = const [],
+    this.serieDistancia = const [],
+    this.serieVelocidad = const [],
+    this.serieAltitud = const [],
   });
 
   final double distanciaMetros;
@@ -25,10 +63,18 @@ class EstadisticasRuta {
   final int puntos;
   final double? altitudMinima;
   final double? altitudMaxima;
+  final List<ParcialKm> parciales;
+  final List<DistanciaMinuto> porMinuto;
+  final List<MuestraRuta> serieDistancia;
+  final List<MuestraRuta> serieVelocidad;
+  final List<MuestraRuta> serieAltitud;
 
   bool get tieneAltitud => altitudMinima != null && altitudMaxima != null;
 
   bool get tieneVelocidad => velocidadMaxima > 0;
+
+  bool get tieneSeries =>
+      serieDistancia.length >= 2 || serieVelocidad.isNotEmpty;
 
   Duration? get ritmoMedio {
     if (distanciaMetros < 5 || duracionActiva.inMilliseconds <= 0) return null;

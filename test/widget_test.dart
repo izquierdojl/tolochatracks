@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
@@ -203,6 +204,13 @@ void main() {
           precision: 5,
         ),
         PuntoRuta(
+          latitud: 37.3936,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 19)),
+          altitud: 130,
+          precision: 5,
+        ),
+        PuntoRuta(
           latitud: 37.3981,
           longitud: -5.9845,
           tiempo: inicio.add(const Duration(minutes: 38)),
@@ -223,11 +231,28 @@ void main() {
     await tester.tap(find.textContaining('20 nov 2026'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Distancia'), findsOneWidget);
+    expect(find.text('Distancia'), findsWidgets);
     expect(find.text('Tiempo activo'), findsOneWidget);
     expect(find.text('Desnivel positivo'), findsOneWidget);
     expect(find.text('Altitud mínima'), findsOneWidget);
     expect(find.byTooltip('Eliminar ruta'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Gráficos'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LineChart), findsOneWidget);
+    expect(find.text('Parciales'), findsOneWidget);
+
+    await tester.tap(find.text('Velocidad'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LineChart), findsOneWidget);
+
+    await tester.tap(find.text('Altitud'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LineChart), findsOneWidget);
+
+    await tester.tap(find.text('Por minuto'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BarChart), findsOneWidget);
   });
 
   testWidgets('muestra — cuando la sesión no tiene altitudes', (tester) async {
@@ -259,6 +284,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('—'), findsWidgets);
+
+    await tester.ensureVisible(find.text('Gráficos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Altitud'));
+    await tester.pumpAndSettle();
+    expect(find.text('Esta ruta no tiene datos de altitud.'), findsOneWidget);
   });
 
   testWidgets('elimina una ruta desde el detalle', (tester) async {

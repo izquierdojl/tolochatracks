@@ -7,6 +7,8 @@ import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
 import 'historial_controller.dart';
+import 'widgets/grafico_sesion.dart';
+import 'widgets/tabla_parciales.dart';
 
 class SesionDetallePantalla extends StatefulWidget {
   const SesionDetallePantalla({super.key, required this.sesion});
@@ -223,6 +225,13 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 16),
+          GraficoSesion(estadisticas: _estadisticas),
+          const SizedBox(height: 16),
+          TablaParciales(
+            estadisticas: _estadisticas,
+            actividad: sesion.actividad,
           ),
           const SizedBox(height: 12),
           Card(
