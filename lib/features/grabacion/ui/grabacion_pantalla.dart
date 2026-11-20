@@ -8,6 +8,7 @@ import '../../../core/calculos/calculos_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
 import '../../sesiones/ui/historial_controller.dart';
+import '../../sesiones/ui/widgets/mapa_ruta.dart';
 import 'grabacion_controller.dart';
 import 'widgets/estadisticas_grabacion.dart';
 import 'widgets/selector_actividad.dart';
@@ -227,6 +228,10 @@ class _EnCurso extends StatelessWidget {
         if (conError && controlador.mensajeError != null) ...[
           const SizedBox(height: 12),
           _AvisoError(controlador: controlador, permiteReintentar: true),
+        ],
+        if (controlador.puntos.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          MapaRuta(puntos: controlador.puntos, altura: 220, seguir: true),
         ],
         const SizedBox(height: 16),
         EstadisticasGrabacion(controlador: controlador),

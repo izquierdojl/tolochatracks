@@ -53,8 +53,8 @@ Al pulsar una tarjeta, la app SHALL abrir una pantalla con la actividad, la fech
 duración y las estadísticas completas calculadas a partir de los puntos: distancia,
 tiempo activo, tiempo total, ritmo o velocidad media, velocidad máxima, desnivel positivo
 y negativo, altitud mínima y máxima y número de puntos. El detalle SHALL incluir además
-una tarjeta de gráficos conmutables (Distancia, Velocidad, Altitud y Por minuto) y una
-tabla de parciales por kilómetro.
+una tarjeta de gráficos conmutables (Distancia, Velocidad, Altitud y Por minuto), una
+tabla de parciales por kilómetro y el mapa de la ruta.
 
 #### Scenario: Detalle de una ruta con altitudes
 
@@ -76,6 +76,11 @@ tabla de parciales por kilómetro.
 - **WHEN** el usuario abre una sesión con puntos suficientes
 - **THEN** el detalle muestra la tarjeta de gráficos y la tabla de parciales junto a las
   estadísticas existentes
+
+#### Scenario: Detalle con mapa
+
+- **WHEN** el usuario abre una sesión con puntos
+- **THEN** el detalle muestra el mapa de la ruta junto a las estadísticas y los gráficos
 
 ### Requirement: Eliminación de sesiones
 

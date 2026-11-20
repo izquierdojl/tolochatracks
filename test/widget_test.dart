@@ -7,6 +7,7 @@ import 'package:tolochatracks/core/models/sesion.dart';
 import 'package:tolochatracks/core/servicios/ubicacion.dart';
 import 'package:tolochatracks/features/grabacion/ui/grabacion_controller.dart';
 import 'package:tolochatracks/features/sesiones/ui/historial_controller.dart';
+import 'package:tolochatracks/features/sesiones/ui/widgets/mapa_ruta.dart';
 import 'package:tolochatracks/main.dart';
 
 import 'apoyo/falsos.dart';
@@ -40,6 +41,10 @@ void main() {
     RepositorioSesionesFalso? repositorio,
     ServicioUbicacionFalso? ubicacion,
   }) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final repo = repositorio ?? RepositorioSesionesFalso();
     final servicio = ubicacion ?? ServicioUbicacionFalso();
     final historial = HistorialController(repositorio: repo);
@@ -62,6 +67,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     return app;
+  }
+
+  Future<void> irAGraficos(WidgetTester tester) async {
+    for (var intento = 0; intento < 6; intento++) {
+      if (find.text('Gráficos').evaluate().isNotEmpty) return;
+      await tester.drag(find.byType(ListView).first, const Offset(0, -420));
+      await tester.pump(const Duration(milliseconds: 350));
+    }
   }
 
   testWidgets('el shell arranca en Grabar y permite abrir Historial', (
@@ -117,6 +130,7 @@ void main() {
     await tester.pump();
     expect(find.text('Grabando'), findsOneWidget);
     expect(find.text('Pausar'), findsOneWidget);
+    expect(find.byType(MapaRuta), findsOneWidget);
     expect(app.grabacion.estado, EstadoGrabacion.grabando);
 
     expect(find.text('Pausar'), findsOneWidget);
@@ -235,10 +249,10 @@ void main() {
     expect(find.text('Tiempo activo'), findsOneWidget);
     expect(find.text('Desnivel positivo'), findsOneWidget);
     expect(find.text('Altitud mínima'), findsOneWidget);
+    expect(find.byType(MapaRuta), findsOneWidget);
     expect(find.byTooltip('Eliminar ruta'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Gráficos'));
-    await tester.pumpAndSettle();
+    await irAGraficos(tester);
     expect(find.byType(LineChart), findsOneWidget);
     expect(find.text('Parciales'), findsOneWidget);
 
@@ -285,8 +299,7 @@ void main() {
 
     expect(find.text('—'), findsWidgets);
 
-    await tester.ensureVisible(find.text('Gráficos'));
-    await tester.pumpAndSettle();
+    await irAGraficos(tester);
     await tester.tap(find.text('Altitud'));
     await tester.pumpAndSettle();
     expect(find.text('Esta ruta no tiene datos de altitud.'), findsOneWidget);

@@ -8,6 +8,7 @@ import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
 import 'historial_controller.dart';
 import 'widgets/grafico_sesion.dart';
+import 'widgets/mapa_ruta.dart';
 import 'widgets/tabla_parciales.dart';
 
 class SesionDetallePantalla extends StatefulWidget {
@@ -153,6 +154,8 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          MapaRuta(puntos: sesion.puntos, altura: 280),
           const SizedBox(height: 16),
           Card(
             child: Padding(

@@ -79,7 +79,8 @@ ruido con umbrales razonables.
 
 Durante la grabación, la pantalla SHALL mostrar tiempo activo, distancia, ritmo medio
 (min/km) o velocidad media (km/h) según la actividad, velocidad instantánea y desnivel
-positivo, actualizados al menos una vez por segundo.
+positivo, actualizados al menos una vez por segundo. Cuando exista al menos una posición,
+SHALL mostrar también el mapa de la traza sin que impida pausar o finalizar.
 
 #### Scenario: Grabación de carrera
 
@@ -90,6 +91,11 @@ positivo, actualizados al menos una vez por segundo.
 
 - **WHEN** hay una grabación de «Bicicleta» en curso
 - **THEN** la pantalla muestra la velocidad en km/h
+
+#### Scenario: Grabación con mapa
+
+- **WHEN** hay una grabación con posiciones
+- **THEN** se ven el mapa y las estadísticas en vivo, y los controles siguen disponibles
 
 ### Requirement: Pausa y reanudación
 
