@@ -82,10 +82,3 @@ quedar disponibles en el detalle.
 - **WHEN** una sesión tiene miles de puntos
 - **THEN** el detalle sigue siendo fluido y los gráficos conservan la forma general de
   la ruta
-
-## MODIFIED Requirements
-
-### Requirement: Detalle de una sesión
-
-El detalle SHALL incluir, además de las estadísticas ya definidas, una tarjeta de
-gráficos y una tabla de parciales por kilómetro.
