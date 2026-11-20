@@ -62,6 +62,11 @@ No se solicita el permiso de ubicación en segundo plano: el servicio en primer 
 el que mantiene la captura. Se pide el permiso de notificaciones en Android 13+ para que
 la notificación sea visible.
 
+El wake lock se libera al pausar y se recupera al reanudar. No cierres la app desde
+«Recientes» mientras grabas: el servicio se detiene y se conserva el borrador para
+recuperarlo al volver. Para rutas largas, deja la app en segundo plano y permite la
+exención de batería en Ajustes.
+
 ## Mapas y atribución
 
 Los mapas son opcionales y utilizan servicios libres:

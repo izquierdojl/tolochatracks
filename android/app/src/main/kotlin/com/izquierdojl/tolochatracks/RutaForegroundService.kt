@@ -41,25 +41,30 @@ class RutaForegroundService : Service() {
                 pausado = false
                 guardando = false
                 iniciarPrimerPlano()
+                actualizarWakeLock()
             }
             ACCION_ACTUALIZAR -> {
                 pausado = intent.getBooleanExtra(EXTRA_PAUSADO, false)
                 guardando = false
                 actualizarNotificacion()
+                actualizarWakeLock()
             }
             ACCION_PAUSAR -> {
                 pausado = true
                 actualizarNotificacion()
+                actualizarWakeLock()
                 enviarAccion("pausar")
             }
             ACCION_REANUDAR -> {
                 pausado = false
                 actualizarNotificacion()
+                actualizarWakeLock()
                 enviarAccion("reanudar")
             }
             ACCION_DETENER -> {
                 guardando = true
                 actualizarNotificacion("Guardando la ruta…")
+                liberarWakeLock()
                 enviarAccion("detener")
             }
             else -> iniciarPrimerPlano()
@@ -70,7 +75,6 @@ class RutaForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun iniciarPrimerPlano() {
-        adquirirWakeLock()
         val notificacion = construirNotificacion()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -165,6 +169,19 @@ class RutaForegroundService : Service() {
             }
     }
 
+    private fun actualizarWakeLock() {
+        if (pausado) {
+            liberarWakeLock()
+        } else {
+            adquirirWakeLock()
+        }
+    }
+
+    private fun liberarWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+    }
+
     private fun crearCanal() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val canal = NotificationChannel(
@@ -179,8 +196,7 @@ class RutaForegroundService : Service() {
     }
 
     override fun onDestroy() {
-        wakeLock?.let { if (it.isHeld) it.release() }
-        wakeLock = null
+        liberarWakeLock()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
