@@ -32,4 +32,4 @@
 
 - [x] 5.1 `flutter analyze` y `flutter test` en verde con `dart format` aplicado
 - [x] 5.2 Build local de APK release correcto
-- [ ] 5.3 Primer push a dev y comprobación del pipeline
+- [x] 5.3 Primer push a dev y comprobación del pipeline
