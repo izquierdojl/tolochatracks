@@ -5,6 +5,10 @@ import 'package:tolochatracks/core/models/actividad.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
 import 'package:tolochatracks/core/servicios/ubicacion.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tolochatracks/features/configuracion/data/configuracion_repositorio.dart';
+import 'package:tolochatracks/features/configuracion/ui/configuracion_controller.dart';
+import 'package:tolochatracks/features/exportacion/ui/exportacion_controller.dart';
 import 'package:tolochatracks/features/grabacion/ui/grabacion_controller.dart';
 import 'package:tolochatracks/features/sesiones/ui/historial_controller.dart';
 import 'package:tolochatracks/features/sesiones/ui/widgets/mapa_ruta.dart';
@@ -18,12 +22,18 @@ class ControllersApp {
     required this.grabacion,
     required this.repositorio,
     required this.ubicacion,
+    required this.configuracion,
+    required this.exportacion,
+    required this.servicioExportacion,
   });
 
   final HistorialController historial;
   final GrabacionController grabacion;
   final RepositorioSesionesFalso repositorio;
   final ServicioUbicacionFalso ubicacion;
+  final ConfiguracionController configuracion;
+  final ExportacionController exportacion;
+  final ServicioExportacionFalso servicioExportacion;
   bool _disposed = false;
 
   Future<void> dispose() async {
@@ -31,6 +41,8 @@ class ControllersApp {
     _disposed = true;
     grabacion.dispose();
     historial.dispose();
+    configuracion.dispose();
+    exportacion.dispose();
     await ubicacion.cerrar();
   }
 }
@@ -40,13 +52,25 @@ void main() {
     WidgetTester tester, {
     RepositorioSesionesFalso? repositorio,
     ServicioUbicacionFalso? ubicacion,
+    ServicioExportacionFalso? servicioExportacion,
   }) async {
+    SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(800, 1800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final repo = repositorio ?? RepositorioSesionesFalso();
     final servicio = ubicacion ?? ServicioUbicacionFalso();
+    final exportacionServicio =
+        servicioExportacion ?? ServicioExportacionFalso();
+    final configuracion = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: exportacionServicio,
+    );
+    final exportacion = ExportacionController(
+      servicio: exportacionServicio,
+      configuracion: configuracion,
+    );
     final historial = HistorialController(repositorio: repo);
     final grabacion = GrabacionController(
       ubicacion: servicio,
@@ -55,15 +79,24 @@ void main() {
     );
     await historial.cargar();
     await grabacion.inicializar();
+    await configuracion.cargar();
     final app = ControllersApp(
       historial: historial,
       grabacion: grabacion,
       repositorio: repo,
       ubicacion: servicio,
+      configuracion: configuracion,
+      exportacion: exportacion,
+      servicioExportacion: exportacionServicio,
     );
     addTearDown(app.dispose);
     await tester.pumpWidget(
-      TolochaTracksApp(historial: historial, grabacion: grabacion),
+      TolochaTracksApp(
+        historial: historial,
+        grabacion: grabacion,
+        configuracion: configuracion,
+        exportacion: exportacion,
+      ),
     );
     await tester.pumpAndSettle();
     return app;
@@ -338,5 +371,99 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Todavía no hay rutas'), findsOneWidget);
+  });
+
+  testWidgets('Ajustes cambia el tema y gestiona la carpeta', (tester) async {
+    final app = await bombearApp(tester);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Carpeta de exportación'), findsOneWidget);
+    expect(find.textContaining('Sin configurar'), findsOneWidget);
+
+    await tester.tap(find.text('Oscuro'));
+    await tester.pumpAndSettle();
+    expect(app.configuracion.tema, ThemeMode.dark);
+
+    await tester.tap(find.text('Elegir carpeta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rutas'), findsOneWidget);
+    expect(app.configuracion.tieneDirectorio, isTrue);
+
+    await tester.tap(find.byTooltip('Quitar carpeta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Quitar'));
+    await tester.pumpAndSettle();
+    expect(app.configuracion.tieneDirectorio, isFalse);
+  });
+
+  testWidgets('exporta una ruta desde el detalle pidiendo carpeta', (
+    tester,
+  ) async {
+    final inicio = DateTime(2026, 11, 20, 18);
+    final sesion = Sesion(
+      id: 'exportar-detalle',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 20),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+        ),
+      ],
+    );
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Exportar ruta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Elegir carpeta'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioExportacion.archivos, hasLength(2));
+    expect(app.servicioExportacion.archivos.first.nombre, endsWith('.gpx'));
+    expect(app.configuracion.tieneDirectorio, isTrue);
+  });
+
+  testWidgets('exporta todo el historial visible', (tester) async {
+    final inicio = DateTime(2026, 11, 20, 18);
+    final sesion = Sesion(
+      id: 'exportar-todo',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 10),
+      puntos: const [],
+    );
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Exportar todo'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Elegir carpeta'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioExportacion.archivos, hasLength(2));
   });
 }

@@ -6,6 +6,8 @@ import '../../../core/calculos/calculos_ruta.dart';
 import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
+import '../../exportacion/ui/acciones_exportacion.dart';
+import '../../exportacion/ui/exportacion_controller.dart';
 import 'historial_controller.dart';
 import 'widgets/grafico_sesion.dart';
 import 'widgets/mapa_ruta.dart';
@@ -23,6 +25,7 @@ class SesionDetallePantalla extends StatefulWidget {
 class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
   late final EstadisticasRuta _estadisticas;
   bool _eliminando = false;
+  bool _exportando = false;
 
   @override
   void initState() {
@@ -33,6 +36,17 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
       inicio: widget.sesion.inicio,
       fin: widget.sesion.fin,
     );
+  }
+
+  Future<void> _exportar() async {
+    final disponible = await asegurarDirectorioExportacion(context);
+    if (!disponible || !mounted) return;
+    setState(() => _exportando = true);
+    final exportacion = context.read<ExportacionController>();
+    final resultado = await exportacion.exportar([widget.sesion]);
+    if (!mounted) return;
+    setState(() => _exportando = false);
+    mostrarResultadoExportacion(context, resultado, exportacion.error);
   }
 
   Future<void> _eliminar() async {
@@ -90,6 +104,17 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
           '${sesion.actividad.etiqueta} · ${formatearFecha(sesion.inicio)}',
         ),
         actions: [
+          IconButton(
+            tooltip: 'Exportar ruta',
+            onPressed: _exportando ? null : _exportar,
+            icon: _exportando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.file_download_outlined),
+          ),
           IconButton(
             tooltip: 'Eliminar ruta',
             onPressed: _eliminando ? null : _eliminar,

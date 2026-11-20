@@ -6,6 +6,8 @@ import '../../../core/models/actividad.dart';
 import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
+import '../../exportacion/ui/acciones_exportacion.dart';
+import '../../exportacion/ui/exportacion_controller.dart';
 import 'historial_controller.dart';
 import 'sesion_detalle_pantalla.dart';
 
@@ -37,6 +39,7 @@ class _ListaHistorial extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final exportacion = context.watch<ExportacionController>();
     final sesiones = historial.sesionesFiltradas;
     return RefreshIndicator(
       onRefresh: historial.cargar,
@@ -93,7 +96,25 @@ class _ListaHistorial extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          if (sesiones.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: exportacion.exportando
+                    ? null
+                    : () => _exportarTodo(context, historial),
+                icon: exportacion.exportando
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.file_download_outlined),
+                label: const Text('Exportar todo'),
+              ),
+            ),
+          const SizedBox(height: 8),
           if (sesiones.isEmpty)
             _FiltroVacio(actividad: historial.filtro)
           else
@@ -341,4 +362,16 @@ class _ErrorHistorial extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _exportarTodo(
+  BuildContext context,
+  HistorialController historial,
+) async {
+  final disponible = await asegurarDirectorioExportacion(context);
+  if (!disponible || !context.mounted) return;
+  final exportacion = context.read<ExportacionController>();
+  final resultado = await exportacion.exportar(historial.sesionesFiltradas);
+  if (!context.mounted) return;
+  mostrarResultadoExportacion(context, resultado, exportacion.error);
 }

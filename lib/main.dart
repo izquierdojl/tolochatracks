@@ -3,7 +3,11 @@ import 'package:provider/provider.dart';
 
 import 'app/shell/shell_pantalla.dart';
 import 'app/theme/app_theme.dart';
+import 'core/servicios/exportacion.dart';
 import 'core/servicios/ubicacion.dart';
+import 'features/configuracion/data/configuracion_repositorio.dart';
+import 'features/configuracion/ui/configuracion_controller.dart';
+import 'features/exportacion/ui/exportacion_controller.dart';
 import 'features/grabacion/ui/grabacion_controller.dart';
 import 'features/sesiones/data/sesiones_repositorio.dart';
 import 'features/sesiones/ui/historial_controller.dart';
@@ -11,13 +15,33 @@ import 'features/sesiones/ui/historial_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repositorio = SesionesRepositorio();
+  final servicioExportacion = const ServicioExportacionCanal();
+  final configuracion = ConfiguracionController(
+    repositorio: ConfiguracionRepositorio(),
+    exportacion: servicioExportacion,
+  );
+  final exportacion = ExportacionController(
+    servicio: servicioExportacion,
+    configuracion: configuracion,
+  );
   final historial = HistorialController(repositorio: repositorio);
   final grabacion = GrabacionController(
     ubicacion: const ServicioUbicacionGeolocator(),
     repositorio: repositorio,
   );
-  await Future.wait([historial.cargar(), grabacion.inicializar()]);
-  runApp(TolochaTracksApp(historial: historial, grabacion: grabacion));
+  await Future.wait([
+    historial.cargar(),
+    grabacion.inicializar(),
+    configuracion.cargar(),
+  ]);
+  runApp(
+    TolochaTracksApp(
+      historial: historial,
+      grabacion: grabacion,
+      configuracion: configuracion,
+      exportacion: exportacion,
+    ),
+  );
 }
 
 class TolochaTracksApp extends StatelessWidget {
@@ -25,10 +49,14 @@ class TolochaTracksApp extends StatelessWidget {
     super.key,
     required this.historial,
     required this.grabacion,
+    required this.configuracion,
+    required this.exportacion,
   });
 
   final HistorialController historial;
   final GrabacionController grabacion;
+  final ConfiguracionController configuracion;
+  final ExportacionController exportacion;
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +64,18 @@ class TolochaTracksApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: historial),
         ChangeNotifierProvider.value(value: grabacion),
+        ChangeNotifierProvider.value(value: configuracion),
+        ChangeNotifierProvider.value(value: exportacion),
       ],
-      child: MaterialApp(
-        title: 'TolochaTracks',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.claro,
-        darkTheme: AppTheme.oscuro,
-        themeMode: ThemeMode.system,
-        home: const ShellPantalla(),
+      child: Consumer<ConfiguracionController>(
+        builder: (context, config, _) => MaterialApp(
+          title: 'TolochaTracks',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.claro,
+          darkTheme: AppTheme.oscuro,
+          themeMode: config.tema,
+          home: const ShellPantalla(),
+        ),
       ),
     );
   }

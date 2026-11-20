@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:tolochatracks/core/data/repositorio_sesiones.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
+import 'package:tolochatracks/core/servicios/exportacion.dart';
 import 'package:tolochatracks/core/servicios/ubicacion.dart';
 
 class RepositorioSesionesFalso implements RepositorioSesiones {
@@ -111,4 +112,30 @@ class ServicioUbicacionFalso implements ServicioUbicacion {
   }
 
   Future<void> cerrar() => _posiciones.close();
+}
+
+class ServicioExportacionFalso implements ServicioExportacion {
+  ServicioExportacionFalso({
+    this.directorio = const DirectorioExportacion(
+      uri: 'content://com.android.providers.downloads.documents/tree/rutas',
+      nombre: 'Rutas',
+    ),
+  });
+
+  DirectorioExportacion? directorio;
+  List<ArchivoExportacion> archivos = [];
+  bool fallar = false;
+
+  @override
+  Future<DirectorioExportacion?> elegirDirectorio() async => directorio;
+
+  @override
+  Future<ResultadoExportacion> exportar({
+    required String uri,
+    required List<ArchivoExportacion> archivos,
+  }) async {
+    if (fallar) throw StateError('fallo simulado');
+    this.archivos = [...archivos];
+    return ResultadoExportacion(exportados: archivos.length, errores: const []);
+  }
 }
