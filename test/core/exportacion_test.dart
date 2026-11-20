@@ -36,7 +36,9 @@ Sesion crearSesion({bool conAltitud = true}) {
 
 void main() {
   test('el GPX es 1.1, contiene metadatos y un trkpt por punto', () {
-    final gpx = gpxDeSesion(crearSesion());
+    final sesion = crearSesion();
+    final gpx = gpxDeSesion(sesion);
+    final primerTiempo = sesion.puntos.first.tiempo.toUtc().toIso8601String();
     expect(gpx, startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
     expect(gpx, contains('version="1.1"'));
     expect(gpx, contains('creator="TolochaTracks"'));
@@ -45,7 +47,7 @@ void main() {
     expect(gpx, contains('<type>hiking</type>'));
     expect('<trkpt'.allMatches(gpx), hasLength(2));
     expect(gpx, contains('<ele>100.0</ele>'));
-    expect(gpx, contains('<time>2026-11-20T17:30:00.000Z</time>'));
+    expect(gpx, contains('<time>$primerTiempo</time>'));
     expect(gpx.trimRight(), endsWith('</gpx>'));
   });
 
