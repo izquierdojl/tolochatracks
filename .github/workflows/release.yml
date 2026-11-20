@@ -77,7 +77,13 @@ jobs:
       - name: Preparar assets
         run: |
           mkdir -p release
-          cp artefactos/apk/app-release.apk release/tolochatracks.apk
+          APK="$(find artefactos -name 'app-release.apk' -type f | head -1)"
+          if [ -z "$APK" ]; then
+            echo "No se encontró app-release.apk en los artefactos." >&2
+            find artefactos -maxdepth 3 -type f >&2
+            exit 1
+          fi
+          cp "$APK" release/tolochatracks.apk
           cd release
           sha256sum tolochatracks.apk > tolochatracks.apk.sha256
 

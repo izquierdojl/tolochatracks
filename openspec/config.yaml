@@ -27,6 +27,12 @@ context: |
   OpenTopoMap o CyclOSM), opcionales; los mapas requieren conexión y atribución visible
   (ODbL / © OpenStreetMap contributors). La app debe funcionar sin conexión y sin mapas.
 
+  Grabación en segundo plano: foreground service propio de tipo location con wake lock,
+  notificación persistente con acciones Pausar/Reanudar/Finalizar y exención opcional de
+  optimización de batería. No se pide ACCESS_BACKGROUND_LOCATION: el servicio en primer
+  plano mantiene la captura con la pantalla apagada. La notificación y sus acciones deben
+  seguir funcionando sin abrir la app (mientras el proceso viva).
+
   Exportación: GPX 1.1 y JSON a un directorio elegido con el selector SAF de Android y
   permiso persistente. El directorio se configura en Ajustes; si no hay ninguno, se pide
   al exportar. Nunca se escribe fuera del directorio concedido.

@@ -26,7 +26,7 @@ grabar y olvidarse del móvil.
 | Lenguaje | Dart estricto con `flutter_lints`; `dart format` como formateador. |
 | Plataforma | **Solo Android (APK)**. No hay build de escritorio ni iOS/web. |
 | Estado | `provider` (suficiente para el alcance; sin gestores complejos). |
-| Ubicación | `geolocator` con GPS de alta precisión y servicio en primer plano para seguir grabando con la pantalla apagada. |
+| Ubicación | `geolocator` con `LocationAccuracy.high` y `distanceFilter` de 3 m, `LocationManager` de Android (sin depender de Play Services), servicio en primer plano propio de tipo `location` con wake lock y acciones Pausar/Reanudar/Finalizar en la notificación. |
 | Mapas | `flutter_map` + `latlong2` con teselas de OpenStreetMap, OpenTopoMap y CyclOSM. Servicio opcional y desactivable. |
 | Persistencia | Archivos JSON internos en el directorio de documentos de la app (una sesión por archivo) con `path_provider`. Ajustes en `shared_preferences`. |
 | Exportación | GPX 1.1 y JSON a un directorio elegido con el selector SAF de Android (permiso persistente). |
@@ -73,7 +73,10 @@ decisión explícita del usuario y actualización de este documento.
 - **Android** es la única plataforma. Permisos: ubicación precisa (`ACCESS_FINE_LOCATION`
   y `ACCESS_COARSE_LOCATION`), servicio en primer plano de ubicación
   (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`), notificaciones
-  (`POST_NOTIFICATIONS`) e INTERNET para las teselas. Nada más.
+  (`POST_NOTIFICATIONS`), `WAKE_LOCK` para el servicio en primer plano, exención de
+  optimización de batería (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, solo para pedirla desde
+  Ajustes) e INTERNET para las teselas. Nada más. No se pide ubicación en segundo plano:
+  el servicio en primer plano de tipo `location` mantiene la captura.
 - El permiso de ubicación se pide **solo al iniciar la primera grabación**; si se deniega,
   se explica en español y se ofrece abrir los ajustes.
 - La grabación usa un servicio en primer plano con notificación persistente; no se
@@ -175,15 +178,20 @@ decisión explícita del usuario y actualización de este documento.
 6. Versión `0.x` hasta que el usuario decida `1.0.0`.
 7. La configuración personalizada de OpenSpec no puede perderse: el marcador y el script
    de comprobación son parte de la CI.
+8. La grabación en segundo plano usa un foreground service propio de tipo `location` y
+   wake lock; no se pide `ACCESS_BACKGROUND_LOCATION`. Ajustes ofrece la exención de
+   batería; los fabricantes agresivos pueden requerir además permitir el inicio automático.
+9. Flutter se actualiza solo con un change `infra` que fije la nueva versión en CI y en
+   el SDK local, ejecute `npm run verify` y compile el APK. Los avisos de `pub` sobre
+   dependencias transitivas no justifican cambiar el SDK: se revisan con
+   `flutter pub outdated` y se actualizan solo las que permitan las restricciones.
 
-## 12. Hoja de ruta inmediata
+## 12. Estado y siguientes pasos
 
-1. `infra-…-esqueleto-y-gobernanza` — proyecto Flutter Android, tema, shell, scripts, CI
-   y release.
-2. `feature-…-grabacion-gps` — modelos, cálculos, grabación con servicio en primer plano,
-   borrador recuperable y pantalla de grabación.
-3. `feature-…-historial-sesiones` — registro interno de sesiones, historial y detalle.
-4. `feature-…-estadisticas-y-graficos` — gráficos, parciales por km y distancia por minuto.
-5. `feature-…-mapas-libres` — OpenStreetMap/OpenTopoMap/CyclOSM con atribución.
-6. `feature-…-exportacion-gpx` — GPX/JSON a un directorio SAF configurado.
-7. `feature-…-configuracion-y-acabados` — preferencias, acerca de, marca e iconos.
+Capacidades entregadas: grabación GPS con borrador, historial y detalle, estadísticas con
+gráficos y parciales, mapas libres configurables, exportación GPX/JSON, tema y ajustes,
+Acerca de, CI/CD y releases APK.
+
+Siguientes pasos posibles (cada uno como change nuevo): importar GPX, compartir con el
+share sheet, mapas offline, pausa automática, solicitud de ubicación en segundo plano si
+un dispositivo concreto la exige, y publicación en Play Store si el usuario lo decide.

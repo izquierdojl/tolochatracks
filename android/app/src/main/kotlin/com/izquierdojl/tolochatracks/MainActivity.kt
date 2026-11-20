@@ -1,10 +1,15 @@
 package com.izquierdojl.tolochatracks
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -14,8 +19,13 @@ import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private val canal = "com.izquierdojl.tolochatracks/exportacion"
+    private val canalPermisos = "com.izquierdojl.tolochatracks/permisos"
+    private val canalRuta = "com.izquierdojl.tolochatracks/ruta"
+    private val canalBateria = "com.izquierdojl.tolochatracks/bateria"
     private val codigoArbol = 4101
+    private val codigoNotificaciones = 4102
     private var resultadoPendiente: MethodChannel.Result? = null
+    private var resultadoNotificaciones: MethodChannel.Result? = null
     private val ejecutor = Executors.newSingleThreadExecutor()
     private val principal = Handler(Looper.getMainLooper())
 
@@ -29,6 +39,104 @@ class MainActivity : FlutterActivity() {
                 else -> resultado.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, canalPermisos).setMethodCallHandler { llamada, resultado ->
+            when (llamada.method) {
+                "pedirNotificaciones" -> pedirNotificaciones(resultado)
+                else -> resultado.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, canalBateria).setMethodCallHandler { llamada, resultado ->
+            when (llamada.method) {
+                "estadoBateria" -> {
+                    val gestor = getSystemService(PowerManager::class.java)
+                    resultado.success(gestor.isIgnoringBatteryOptimizations(packageName))
+                }
+                "pedirExencionBateria" -> {
+                    pedirExencionBateria()
+                    resultado.success(true)
+                }
+                else -> resultado.notImplemented()
+            }
+        }
+        val canalServicio = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, canalRuta)
+        CanalRuta.canal = canalServicio
+        canalServicio.setMethodCallHandler { llamada, resultado ->
+            try {
+                when (llamada.method) {
+                    "iniciar" -> {
+                        iniciarServicioRuta(RutaForegroundService.ACCION_INICIAR)
+                        resultado.success(true)
+                    }
+                    "actualizar" -> {
+                        val pausado = llamada.argument<Boolean>("pausado") ?: false
+                        iniciarServicioRuta(RutaForegroundService.ACCION_ACTUALIZAR, pausado)
+                        resultado.success(true)
+                    }
+                    "detener" -> {
+                        stopService(Intent(this, RutaForegroundService::class.java))
+                        resultado.success(true)
+                    }
+                    else -> resultado.notImplemented()
+                }
+            } catch (e: Exception) {
+                resultado.error("servicio_ruta", e.message, null)
+            }
+        }
+    }
+
+    private fun pedirExencionBateria() {
+        try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:$packageName")
+                )
+            )
+        } catch (_: Exception) {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
+    }
+
+    private fun iniciarServicioRuta(accion: String, pausado: Boolean = false) {
+        val intent = Intent(this, RutaForegroundService::class.java).apply {
+            this.action = accion
+            putExtra(RutaForegroundService.EXTRA_PAUSADO, pausado)
+        }
+        if (accion == RutaForegroundService.ACCION_ACTUALIZAR) {
+            startService(intent)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun pedirNotificaciones(resultado: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        ) {
+            resultado.success(true)
+            return
+        }
+        if (resultadoNotificaciones != null) {
+            resultado.success(true)
+            return
+        }
+        resultadoNotificaciones = resultado
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), codigoNotificaciones)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != codigoNotificaciones) return
+        val concedido = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        resultadoNotificaciones?.success(concedido)
+        resultadoNotificaciones = null
     }
 
     private fun elegirDirectorio(resultado: MethodChannel.Result) {
