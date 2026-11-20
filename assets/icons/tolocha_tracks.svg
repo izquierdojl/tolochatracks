@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="fondo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#08100b"/>
+      <stop offset="1" stop-color="#203a28"/>
+    </linearGradient>
+    <linearGradient id="ruta" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#8cb29a"/>
+      <stop offset="1" stop-color="#e2c091"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#fondo)"/>
+  <circle cx="14.5" cy="14" r="5.5" fill="#e2c091"/>
+  <path d="M0 64 L13 39 L25 52 L38 32 L64 57 L64 64 Z" fill="#2c4f38"/>
+  <path d="M11 51 C 16 45, 17 38, 24 35 S 33 40, 38 33 S 42 24, 47 21"
+        fill="none" stroke="url(#ruta)" stroke-width="3.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="11" cy="51" r="3.2" fill="#b4c47e"/>
+  <path d="M47 13 c -5.3 0 -9.2 4 -9.2 9.1 c 0 6.8 9.2 14.4 9.2 14.4 s 9.2 -7.6 9.2 -14.4 C 56.2 17 52.3 13 47 13 Z"
+        fill="#d3a568"/>
+  <circle cx="47" cy="22" r="3.4" fill="#08100b"/>
+</svg>

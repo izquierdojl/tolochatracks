@@ -1,0 +1,21 @@
+{
+  "name": "tolochatracks",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Registro rápido de rutas GPS: correr, senderismo, bicicleta y más (Flutter)",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "verify": "bash scripts/verificar.sh",
+    "check:changes": "bash scripts/check_changes.sh",
+    "check:openspec": "bash scripts/check_openspec_config.sh",
+    "release:major": "node scripts/bump.js major",
+    "release:minor": "node scripts/bump.js minor",
+    "release:patch": "node scripts/bump.js patch"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1"
+  }
+}

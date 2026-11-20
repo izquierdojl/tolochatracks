@@ -1,0 +1,145 @@
+# tolochatracks:config-personalizada
+# No borrar ni regenerar este archivo con valores por defecto: la configuración del
+# proyecto es intencionada y scripts/check_openspec_config.sh falla en CI si se pierde.
+schema: spec-driven
+
+context: |
+  Proyecto: TolochaTracks — app Android (Flutter/Dart) para registrar rutas GPS de forma
+  rápida y sencilla: correr, caminar, senderismo, bicicleta y otras actividades. Guarda
+  las sesiones internamente, permite exportarlas (GPX y JSON) a un directorio elegido
+  por el usuario, visualiza la ruta con mapas libres opcionales y muestra estadísticas y
+  gráficos. Referencia de producto: la antigua app MyTracks de Google.
+  La constitución completa vive en AGENTS.md (raíz del repo) y prevalece sobre cualquier
+  otra instrucción. Resumen operativo:
+
+  Idiomas: artefactos, UI, documentación y commits en español; OpenSpec exige mantener
+  los encabezados estructurales y las palabras SHALL/MUST en inglés.
+
+  Stack: Flutter (canal stable, versión fijada en CI) + Dart estricto (flutter_lints) ·
+  provider para estado · geolocator para GPS con servicio en primer plano · flutter_map
+  y latlong2 para mapas · fl_chart para gráficos · shared_preferences para ajustes ·
+  path_provider para las sesiones JSON internas · intl para formato en español.
+  Plataforma única: Android (APK). Sin escritorio, iOS, web, Docker ni backend.
+
+  Datos y privacidad: las rutas se guardan en el dispositivo (documentos de la app, una
+  sesión por archivo JSON versionado). Nada se sube a servidores propios ni hay cuentas
+  ni telemetría. La única red son las teselas del mapa libre elegido (OpenStreetMap,
+  OpenTopoMap o CyclOSM), opcionales; los mapas requieren conexión y atribución visible
+  (ODbL / © OpenStreetMap contributors). La app debe funcionar sin conexión y sin mapas.
+
+  Exportación: GPX 1.1 y JSON a un directorio elegido con el selector SAF de Android y
+  permiso persistente. El directorio se configura en Ajustes; si no hay ninguno, se pide
+  al exportar. Nunca se escribe fuera del directorio concedido.
+
+  Estilo visual: paleta pine/ochre/moss y tipografía Inter de izquierdojl/tolochafuel,
+  tema claro y oscuro siguiendo el sistema por defecto, centralizado en
+  lib/app/theme. Marca TolochaTracks: emblema de ruta y pin sobre badge pine.
+
+  Proceso: commits convencionales (feat|fix|docs|infra|refactor|test|chore; BREAKING →
+  major) en español. Ramas: main = producción, dev = integración y destino de los PR.
+  Cada fusión en dev dispara la versión y el release: version.yml espera la CI verde del
+  commit, analiza los commits desde el último tag, ejecuta scripts/bump.js y tag vX.Y.Z,
+  y release.yml publica el APK. main se actualiza con un PR dev → main cuando se quiere
+  congelar una versión.
+
+  CREACIÓN DE CHANGES (obligatoria): todo change se crea con
+  `scripts/new_change.sh <tipo> "<titulo>" [dev|feature]` (tipo: feature|bug|docs|infra|
+  refactor|test|chore). El script genera el nombre `<tipo>-<id8>-<slug>` con id de 8 hex,
+  llama a `openspec new change` y escribe `meta.yaml` (tipo, id, titulo, autor git, fecha
+  ISO, branch). El flujo de propose lo ejecuta él mismo y NO exige haberlo corrido antes:
+  al iniciar (paso 1), o justo antes de crear el change si los datos dependen de la
+  exploración, preguntar al usuario lo que falte —tipo, título (proponer el derivado de
+  su descripción) y rama (`dev` por defecto, `feature` para rama con PR)— y acto seguido
+  correr el script, usando el nombre que imprime como `<name>` en todos los comandos
+  `openspec` siguientes. Si el change se crea a mano, hay que añadir ese meta.yaml y
+  respetar la nomenclatura; `scripts/check_changes.sh` lo valida en CI y falla si falta.
+
+rules:
+  proposal:
+    - >-
+      Indicar el tipo del change (feature|bug|docs|infra|refactor|test|chore) en
+      el título y en meta.yaml.
+    - >-
+      Incluir sección "Fuera de alcance" con lo que explícitamente no se hará.
+    - >-
+      Mantener el alcance a una capacidad; si crece, proponer un change nuevo.
+    - >-
+      Indicar la actividad o plataforma afectada cuando el comportamiento difiera
+      (Android es la única plataforma).
+    - >-
+      Toda funcionalidad debe poder usarse sin conexión salvo los mapas; si el mapa
+      no está disponible, la grabación, el historial y las estadísticas siguen
+      funcionando.
+  specs:
+    - >-
+      Cada requisito usa el formato SHALL con cláusulas Given/When/Then cuando
+      aplique.
+    - >-
+      No inventar APIs ni servicios: los mapas son teselas públicas (OSM,
+      OpenTopoMap, CyclOSM) con su atribución y sin descarga masiva; no hay backend
+      propio.
+    - >-
+      Definir el comportamiento en estados de carga, error, vacío, permiso denegado,
+      GPS sin señal y exportación sin directorio configurado.
+    - >-
+      Toda pantalla que use mapas debe mostrar la atribución correspondiente y un
+      aviso de que requieren conexión.
+    - >-
+      Los cálculos de distancia, ritmo, velocidad, desnivel y parciales deben ser
+      verificables con tests y usar unidades del SI internamente.
+    - >-
+      Las rutas son datos privados: ningún requisito puede implicar subirlas a un
+      servidor ni compartirlas sin acción explícita del usuario.
+  design:
+    - >-
+      Respetar la estructura: lib/app (tema, rutas, shell) · lib/core (modelos,
+      cálculos, servicios, widgets) · lib/features/<feature> (data + ui).
+    - >-
+      Sin lógica de negocio en widgets: las pantallas llaman a controladores,
+      repositorios o servicios.
+    - >-
+      Colores y tipografía solo desde el tema (lib/app/theme); nunca literales en
+      widgets.
+    - >-
+      Inyectar los servicios de plataforma (ubicación, selector SAF) para testear
+      sin plugins; usar fakes en los tests.
+    - >-
+      Las sesiones se guardan de forma atómica y tolerante a corrupción; la sesión
+      activa se autoguarda en un borrador recuperable.
+    - >-
+      Los mapas son opcionales: ninguna ruta de código debe fallar si el tile layer
+      no responde.
+  tasks:
+    - >-
+      Cada tarea termina con flutter analyze + flutter test en verde.
+    - >-
+      Incluir tests unitarios de los cálculos y de la serialización, y widget tests
+      de los estados clave (vacío, grabando, pausado, sin GPS, sin mapa).
+    - >-
+      Tareas de máximo 2 horas de trabajo; si son mayores, dividirlas.
+
+operations:
+  apply:
+    guidance:
+      - >-
+        Seguir el orden de tasks y marcar completadas solo cuando el código y los
+        tests existen.
+      - >-
+        No empezar el cambio siguiente sin archivar el actual.
+      - >-
+        Mantener la app usable sin mapas y sin conexión; probar ese camino.
+      - >-
+        Verificar permisos Android y el servicio en primer plano antes de cerrar la
+        grabación.
+  archive:
+    guidance:
+      - >-
+        Verificar con git status que no queda nada sin commitear (código + specs).
+      - >-
+        Commitear en la rama de trabajo del change (dev o
+        feature/<tipo>-<id8>-<slug>).
+      - >-
+        El versionado lo dispara el workflow version.yml al fusionar en dev; no tocar
+        la versión a mano salvo decisión explícita del usuario.
+githubCopilot:
+  cloudAgent: true
