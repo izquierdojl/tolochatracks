@@ -1,7 +1,7 @@
 name: tolochatracks
 description: "Registro rápido de rutas GPS: correr, senderismo, bicicleta y más."
 publish_to: 'none'
-version: 0.6.1+10
+version: 0.7.0+11
 environment:
   sdk: ^3.13.5
 
