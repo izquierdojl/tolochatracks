@@ -58,6 +58,76 @@ void main() {
     expect('<trkpt'.allMatches(gpx), hasLength(2));
   });
 
+  test('el GPX escribe un trkseg por segmento', () {
+    final inicio = DateTime(2026, 11, 20, 18, 30);
+    final sesion = Sesion(
+      id: 'segmentos',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 20),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+          segmento: 0,
+        ),
+        PuntoRuta(
+          latitud: 37.3892,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 5)),
+          precision: 5,
+          segmento: 0,
+        ),
+        PuntoRuta(
+          latitud: 37.3893,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 10)),
+          precision: 5,
+          segmento: 1,
+        ),
+        PuntoRuta(
+          latitud: 37.3894,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 15)),
+          precision: 5,
+          segmento: 1,
+        ),
+        PuntoRuta(
+          latitud: 37.3895,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 20)),
+          precision: 5,
+          segmento: 2,
+        ),
+      ],
+    );
+    final gpx = gpxDeSesion(sesion);
+    expect('<trkseg>'.allMatches(gpx), hasLength(3));
+    expect('</trkseg>'.allMatches(gpx), hasLength(3));
+    expect('<trkpt'.allMatches(gpx), hasLength(5));
+  });
+
+  test('una sesión antigua con hueco se exporta con dos segmentos', () {
+    final gpx = gpxDeSesion(
+      Sesion.desdeJson({
+        'formato': 2,
+        'id': 'antigua',
+        'actividad': 'correr',
+        'inicio': '2026-11-20T18:30:00.000Z',
+        'duracionSegundos': 120,
+        'puntos': [
+          {'lat': 37.3891, 'lon': -5.9845, 't': '2026-11-20T18:30:00.000Z'},
+          {'lat': 37.3892, 'lon': -5.9845, 't': '2026-11-20T18:30:30.000Z'},
+          {'lat': 37.3893, 'lon': -5.9845, 't': '2026-11-20T18:32:30.000Z'},
+        ],
+      }),
+    );
+    expect('<trkseg>'.allMatches(gpx), hasLength(2));
+    expect('<trkpt'.allMatches(gpx), hasLength(3));
+  });
+
   test('el JSON exportado se puede volver a leer', () {
     final sesion = crearSesion();
     final json = jsonDeSesion(sesion);
@@ -101,7 +171,7 @@ void main() {
     expect(archivos[0].mime, 'application/gpx+xml');
     expect(archivos[1].mime, 'application/json');
     expect(archivos[0].contenido, contains('<gpx'));
-    expect(archivos[1].contenido, contains('"formato": 2'));
+    expect(archivos[1].contenido, contains('"formato": 3'));
   });
 
   test('el resultado de borrado es correcto solo sin errores ni ausentes', () {

@@ -65,6 +65,9 @@ class AcumuladorRuta {
     if (punto.precision != null && punto.precision! > _precisionMaximaMetros) {
       return;
     }
+    if (_ultimo != null && punto.segmento != _ultimo!.segmento) {
+      _ultimo = null;
+    }
     if (_ultimo != null && !puntoAceptable(_ultimo, punto)) {
       return;
     }
@@ -166,6 +169,9 @@ List<PuntoRuta> _puntosValidos(List<PuntoRuta> puntos) {
   final validos = <PuntoRuta>[];
   PuntoRuta? anterior;
   for (final punto in puntos) {
+    if (anterior != null && punto.segmento != anterior.segmento) {
+      anterior = null;
+    }
     if (punto.precision != null && punto.precision! > _precisionMaximaMetros) {
       continue;
     }
@@ -200,8 +206,9 @@ List<_PuntoAcumulado> _acumular(List<PuntoRuta> puntos, DateTime? inicio) {
   var distancia = 0.0;
   for (final punto in puntos.skip(1)) {
     final delta = punto.tiempo.difference(anterior.tiempo);
-    if (!delta.isNegative) tiempo += delta;
-    final segmento = distanciaHaversine(anterior, punto);
+    final cambiaSegmento = punto.segmento != anterior.segmento;
+    if (!cambiaSegmento && !delta.isNegative) tiempo += delta;
+    final segmento = cambiaSegmento ? 0.0 : distanciaHaversine(anterior, punto);
     final esJitter =
         segmento < _distanciaMinimaSegmentoMetros &&
         delta.inMilliseconds < _segundosMinimosJitter * 1000;

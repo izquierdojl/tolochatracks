@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'actividad.dart';
 import 'punto_ruta.dart';
 
-const formatoSesionActual = 2;
+const formatoSesionActual = 3;
 
 @immutable
 class Sesion {
@@ -70,6 +70,7 @@ class Sesion {
       throw const FormatException('Sesión sin id o fecha de inicio');
     }
     final formato = json['formato'];
+    final formatoLeido = formato is num ? formato.toInt() : 2;
     final duracion = json['duracionSegundos'];
     final puntosJson = json['puntos'];
     final puntos = <PuntoRuta>[];
@@ -87,16 +88,38 @@ class Sesion {
       }
     }
     puntos.sort((a, b) => a.tiempo.compareTo(b.tiempo));
+    final puntosNormalizados = formatoLeido < 3
+        ? _inferirSegmentos(puntos)
+        : List<PuntoRuta>.unmodifiable(puntos);
     return Sesion(
       id: id,
-      formato: formato is num ? formato.toInt() : formatoSesionActual,
+      formato: formatoLeido,
       actividad: Actividad.desdeClave(json['actividad']?.toString()),
       inicio: inicio,
       fin: _fecha(json['fin']),
       duracionActiva: Duration(seconds: duracion is num ? duracion.toInt() : 0),
-      puntos: List.unmodifiable(puntos),
+      puntos: puntosNormalizados,
       exportada: json['exportada'] == true,
     );
+  }
+
+  static List<PuntoRuta> _inferirSegmentos(List<PuntoRuta> puntos) {
+    if (puntos.isEmpty) return const [];
+    final resultado = <PuntoRuta>[];
+    var segmento = 0;
+    PuntoRuta? anterior;
+    for (final punto in puntos) {
+      final corte =
+          anterior != null &&
+          punto.tiempo.difference(anterior.tiempo) >
+              const Duration(seconds: 60);
+      if (corte) segmento += 1;
+      resultado.add(
+        punto.segmento == segmento ? punto : punto.conSegmento(segmento),
+      );
+      anterior = punto;
+    }
+    return List.unmodifiable(resultado);
   }
 
   static DateTime? _fecha(Object? valor) {

@@ -8,12 +8,14 @@ PuntoRuta punto(
   DateTime tiempo, {
   double? altitud,
   double? precision = 5,
+  int segmento = 0,
 }) => PuntoRuta(
   latitud: latitud,
   longitud: longitud,
   tiempo: tiempo,
   altitud: altitud,
   precision: precision,
+  segmento: segmento,
 );
 
 void main() {
@@ -66,6 +68,70 @@ void main() {
         inicio.add(const Duration(seconds: 10)),
       );
       expect(puntoAceptable(primero, segundo), isTrue);
+    });
+  });
+
+  group('segmentos', () {
+    test('el acumulador no suma distancia ni velocidad entre segmentos', () {
+      final acumulador = AcumuladorRuta();
+      final a = punto(latSevilla, lonSevilla, inicio);
+      final b = punto(
+        latSevilla + 100 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(seconds: 10)),
+      );
+      final c = punto(
+        latSevilla + 180 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(minutes: 20)),
+        segmento: 1,
+      );
+      final d = punto(
+        latSevilla + 280 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(minutes: 20, seconds: 10)),
+        segmento: 1,
+      );
+      for (final p in [a, b, c, d]) {
+        acumulador.agregar(p);
+      }
+      expect(acumulador.distanciaMetros, closeTo(200, 2));
+      expect(acumulador.puntosValidos, 4);
+    });
+
+    test('la pausa no suma distancia ni tiempo activo', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(
+          latSevilla + 1000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 5)),
+        ),
+        punto(
+          latSevilla + 1080 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 20)),
+          segmento: 1,
+        ),
+        punto(
+          latSevilla + 2080 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 25)),
+          segmento: 1,
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 10),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 25)),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(2000, 20));
+      expect(estadisticas.serieDistancia.last.x, closeTo(10, 0.2));
+      expect(estadisticas.porMinuto, hasLength(10));
+      expect(estadisticas.parciales, hasLength(2));
+      expect(estadisticas.parciales[0].duracion, const Duration(minutes: 5));
+      expect(estadisticas.parciales[1].duracion, const Duration(minutes: 5));
     });
   });
 

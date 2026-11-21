@@ -39,6 +39,7 @@ class GrabacionController extends ChangeNotifier {
   Duration _duracionAcumulada = Duration.zero;
   final List<PuntoRuta> _puntos = [];
   final AcumuladorRuta _acumulador = AcumuladorRuta();
+  int _segmentoActual = 0;
   PuntoGps? _ultimaPosicion;
   DateTime? _ultimoPuntoRecibido;
   DateTime? _ultimoAutoguardado;
@@ -98,8 +99,9 @@ class GrabacionController extends ChangeNotifier {
     }
     if (_puntos.length < 2) return ultimo?.velocidad;
     final anterior = _puntos[_puntos.length - 2];
+    if (anterior.segmento != ultimo!.segmento) return ultimo.velocidad;
     final segundos =
-        ultimo!.tiempo.difference(anterior.tiempo).inMilliseconds / 1000;
+        ultimo.tiempo.difference(anterior.tiempo).inMilliseconds / 1000;
     if (segundos <= 0) return ultimo.velocidad;
     return distanciaHaversine(anterior, ultimo) / segundos;
   }
@@ -161,6 +163,7 @@ class GrabacionController extends ChangeNotifier {
     _inicio = _ahora();
     _inicioTramo = _inicio;
     _duracionAcumulada = Duration.zero;
+    _segmentoActual = 0;
     _puntos.clear();
     _acumulador.reiniciar();
     _ultimaPosicion = null;
@@ -219,6 +222,7 @@ class GrabacionController extends ChangeNotifier {
       return;
     }
     _abrirTramo();
+    _segmentoActual += 1;
     _sinSenal = true;
     _estado = EstadoGrabacion.grabando;
     await notificacion?.iniciar();
@@ -310,6 +314,9 @@ class GrabacionController extends ChangeNotifier {
     _puntos
       ..clear()
       ..addAll(borrador.puntos);
+    _segmentoActual = borrador.puntos.isEmpty
+        ? 0
+        : borrador.puntos.last.segmento;
     _acumulador.reiniciar();
     for (final punto in borrador.puntos) {
       _acumulador.agregar(punto);
@@ -372,8 +379,11 @@ class GrabacionController extends ChangeNotifier {
       precision: posicion.precision,
       velocidad: posicion.velocidad,
       rumbo: posicion.rumbo,
+      segmento: _segmentoActual,
     );
-    final anterior = _puntos.isEmpty ? null : _puntos.last;
+    final anterior = _puntos.isEmpty || _puntos.last.segmento != _segmentoActual
+        ? null
+        : _puntos.last;
     if (!puntoAceptable(anterior, punto)) return;
     _puntos.add(punto);
     _acumulador.agregar(punto);
@@ -468,6 +478,7 @@ class GrabacionController extends ChangeNotifier {
     _inicio = null;
     _inicioTramo = null;
     _duracionAcumulada = Duration.zero;
+    _segmentoActual = 0;
     _puntos.clear();
     _acumulador.reiniciar();
     _ultimaPosicion = null;

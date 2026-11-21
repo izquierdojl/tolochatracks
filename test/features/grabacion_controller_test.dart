@@ -156,8 +156,56 @@ void main() {
       _gps(reloj, 37.3891 + 200 / _metroPorGradoLatitud, -5.9845, altitud: 16),
     );
     expect(controlador.duracionActiva, const Duration(seconds: 15));
-    expect(controlador.distanciaMetros, greaterThan(distancia));
+    expect(controlador.distanciaMetros, closeTo(distancia, 0.1));
+    expect(controlador.puntos.last.segmento, 1);
+    expect(controlador.velocidadActual, isNull);
+
+    reloj.avanzar(const Duration(seconds: 5));
+    await ubicacion.emitir(
+      _gps(reloj, 37.3891 + 250 / _metroPorGradoLatitud, -5.9845, altitud: 17),
+    );
+    expect(controlador.duracionActiva, const Duration(seconds: 20));
+    expect(controlador.distanciaMetros, closeTo(distancia + 50, 5));
+    expect(controlador.puntos.last.segmento, 1);
+    expect(controlador.velocidadActual, closeTo(10, 1));
   });
+
+  test(
+    'el borrador conserva los segmentos y la reanudación abre otro',
+    () async {
+      final t0 = DateTime(2026, 11, 20, 17);
+      repositorio.borrador = Sesion(
+        id: 'borrador-segmentos',
+        actividad: Actividad.correr,
+        inicio: t0,
+        duracionActiva: const Duration(minutes: 2),
+        puntos: [
+          PuntoRuta(
+            latitud: 37.3891,
+            longitud: -5.9845,
+            tiempo: t0,
+            precision: 5,
+            segmento: 0,
+          ),
+          PuntoRuta(
+            latitud: 37.3892,
+            longitud: -5.9845,
+            tiempo: t0.add(const Duration(minutes: 2)),
+            precision: 5,
+            segmento: 1,
+          ),
+        ],
+      );
+      await controlador.inicializar();
+      await controlador.recuperarBorrador();
+      expect(controlador.puntos.map((p) => p.segmento), [0, 1]);
+
+      await controlador.reanudar();
+      reloj.avanzar(const Duration(seconds: 3));
+      await ubicacion.emitir(_gps(reloj, 37.3893, -5.9845));
+      expect(controlador.puntos.map((p) => p.segmento), [0, 1, 2]);
+    },
+  );
 
   test('finaliza y guarda la sesión', () async {
     await iniciarConPunto();

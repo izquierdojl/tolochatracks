@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
@@ -352,6 +353,65 @@ void main() {
     await tester.tap(find.text('Por minuto'));
     await tester.pumpAndSettle();
     expect(find.byType(BarChart), findsOneWidget);
+  });
+
+  testWidgets('el detalle separa la pausa y usa tiempo activo', (tester) async {
+    final inicio = DateTime(2026, 11, 20, 18);
+    final sesion = Sesion(
+      id: 'detalle-pausa',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      fin: inicio.add(const Duration(minutes: 25)),
+      duracionActiva: const Duration(minutes: 10),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+          segmento: 0,
+        ),
+        PuntoRuta(
+          latitud: 37.3981,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 5)),
+          precision: 5,
+          segmento: 0,
+        ),
+        PuntoRuta(
+          latitud: 37.4061,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 20)),
+          precision: 5,
+          segmento: 1,
+        ),
+        PuntoRuta(
+          latitud: 37.4151,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 25)),
+          precision: 5,
+          segmento: 1,
+        ),
+      ],
+    );
+    await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+
+    final capa = tester.widget<PolylineLayer>(find.byType(PolylineLayer));
+    expect(capa.polylines, hasLength(2));
+
+    await irAGraficos(tester);
+    final grafico = tester.widget<LineChart>(find.byType(LineChart));
+    expect(grafico.data.lineBarsData.first.spots.last.x, closeTo(10, 0.2));
   });
 
   testWidgets('muestra — cuando la sesión no tiene altitudes', (tester) async {

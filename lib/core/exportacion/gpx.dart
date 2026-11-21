@@ -19,7 +19,14 @@ String gpxDeSesion(Sesion sesion) {
     ..writeln('    <name>${_escapar(_nombreSesion(sesion))}</name>')
     ..writeln('    <type>${_escapar(sesion.actividad.tipoGpx)}</type>')
     ..writeln('    <trkseg>');
+  var segmentoActual = sesion.puntos.isEmpty ? 0 : sesion.puntos.first.segmento;
   for (final punto in sesion.puntos) {
+    if (punto.segmento != segmentoActual) {
+      buffer
+        ..writeln('    </trkseg>')
+        ..writeln('    <trkseg>');
+      segmentoActual = punto.segmento;
+    }
     buffer.writeln(
       '      <trkpt lat="${punto.latitud.toStringAsFixed(7)}" '
       'lon="${punto.longitud.toStringAsFixed(7)}">',
