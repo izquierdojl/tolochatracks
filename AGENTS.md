@@ -26,7 +26,7 @@ grabar y olvidarse del móvil.
 | Lenguaje | Dart estricto con `flutter_lints`; `dart format` como formateador. |
 | Plataforma | **Solo Android (APK)**. No hay build de escritorio ni iOS/web. |
 | Estado | `provider` (suficiente para el alcance; sin gestores complejos). |
-| Ubicación | `geolocator` con `LocationAccuracy.high` y `distanceFilter` de 3 m, `LocationManager` de Android (sin depender de Play Services), servicio en primer plano propio de tipo `location` con wake lock y acciones Pausar/Reanudar/Finalizar en la notificación. |
+| Ubicación | `geolocator` con perfiles de calidad GPS (Ahorro/Equilibrada/Máxima) que ajustan `LocationAccuracy` (medium/high), intervalo (5/2/1 s) y `distanceFilter` (10/3/1 m), `LocationManager` de Android (sin depender de Play Services), servicio en primer plano propio de tipo `location` con wake lock y acciones Pausar/Reanudar/Finalizar en la notificación. |
 | Mapas | `flutter_map` + `latlong2` con teselas de OpenStreetMap, OpenTopoMap y CyclOSM. Servicio opcional y desactivable. |
 | Persistencia | Archivos JSON internos en el directorio de documentos de la app (una sesión por archivo) con `path_provider`. Ajustes en `shared_preferences`. |
 | Exportación | GPX 1.1 y JSON a un directorio elegido con el selector SAF de Android (permiso persistente). |

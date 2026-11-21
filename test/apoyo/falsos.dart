@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:tolochatracks/core/data/repositorio_sesiones.dart';
+import 'package:tolochatracks/core/models/perfil_gps.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
 import 'package:tolochatracks/core/servicios/compartir.dart';
 import 'package:tolochatracks/core/servicios/exportacion.dart';
@@ -78,6 +79,7 @@ class ServicioUbicacionFalso implements ServicioUbicacion {
   bool notificacionesConcedidas = true;
   int ajustesPermisoAbiertos = 0;
   int ajustesUbicacionAbiertos = 0;
+  final List<PerfilGps> perfiles = [];
   final StreamController<PuntoGps> _posiciones =
       StreamController<PuntoGps>.broadcast();
 
@@ -109,7 +111,10 @@ class ServicioUbicacionFalso implements ServicioUbicacion {
   Future<PuntoGps?> posicionActual() async => null;
 
   @override
-  Stream<PuntoGps> posiciones() => _posiciones.stream;
+  Stream<PuntoGps> posiciones(PerfilGps perfil) {
+    perfiles.add(perfil);
+    return _posiciones.stream;
+  }
 
   @override
   Future<void> abrirAjustesPermiso() async {

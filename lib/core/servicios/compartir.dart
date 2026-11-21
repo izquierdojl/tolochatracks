@@ -27,7 +27,7 @@ class ServicioCompartirCanal implements ServicioCompartir {
     }
     await _limpiarAntiguos(carpeta);
     final archivo = File(p.join(carpeta.path, nombreGpx(sesion)));
-    await archivo.writeAsString(gpxDeSesion(sesion), flush: true);
+    await archivo.writeAsString(gpxDeSesion(sesionValida(sesion)), flush: true);
     await canal.invokeMethod<void>('compartirArchivo', {
       'ruta': archivo.path,
       'mime': 'application/gpx+xml',

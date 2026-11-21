@@ -141,6 +141,41 @@ void main() {
     expect(reconstruida.actividad, Actividad.senderismo);
   });
 
+  test('la exportación omite los puntos descartados por precisión', () {
+    final inicio = DateTime(2026, 11, 20, 18, 30);
+    final sesion = Sesion(
+      id: 'descartado',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 5),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+        ),
+        PuntoRuta(
+          latitud: 37.3892,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 2)),
+          precision: 54.7,
+        ),
+        PuntoRuta(
+          latitud: 37.3893,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 5)),
+          precision: 5,
+        ),
+      ],
+    );
+
+    final archivos = archivosDeSesion(sesion);
+    expect('<trkpt'.allMatches(archivos[0].contenido), hasLength(2));
+    final json = jsonDecode(archivos[1].contenido) as Map<String, Object?>;
+    expect(json['puntos'], hasLength(2));
+  });
+
   test('los nombres son ASCII seguros y distinguen formatos', () {
     final sesion = crearSesion();
     final gpx = nombreGpx(sesion);

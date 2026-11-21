@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/models/perfil_gps.dart';
 import '../../../core/models/proveedor_mapas.dart';
 import '../../../core/servicios/bateria.dart';
 import 'acerca_de_pantalla.dart';
@@ -225,6 +226,56 @@ class _ConfiguracionPantallaState extends State<ConfiguracionPantalla>
                       : 'Los mapas están desactivados: no se descargan teselas. '
                             'La grabación, las estadísticas y la exportación '
                             'siguen funcionando.',
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: tema.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _Seccion(titulo: 'GPS'),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Calidad GPS',
+                  style: tema.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'La app ajusta la frecuencia de captura y el filtro. La '
+                  'precisión real depende del móvil y del entorno.',
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: tema.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<PerfilGps>(
+                    showSelectedIcon: false,
+                    segments: [
+                      for (final perfil in PerfilGps.values)
+                        ButtonSegment(
+                          value: perfil,
+                          label: Text(perfil.etiqueta),
+                        ),
+                    ],
+                    selected: {configuracion.perfilGps},
+                    onSelectionChanged: (seleccion) =>
+                        configuracion.cambiarPerfilGps(seleccion.first),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  configuracion.perfilGps.descripcion,
                   style: tema.textTheme.bodySmall?.copyWith(
                     color: tema.colorScheme.onSurfaceVariant,
                   ),

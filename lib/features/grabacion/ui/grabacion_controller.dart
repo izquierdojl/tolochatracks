@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import '../../../core/calculos/calculos_ruta.dart';
 import '../../../core/data/repositorio_sesiones.dart';
 import '../../../core/models/actividad.dart';
+import '../../../core/models/filtro_ruta.dart';
+import '../../../core/models/perfil_gps.dart';
 import '../../../core/models/punto_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/servicios/notificacion_ruta.dart';
@@ -25,15 +27,19 @@ class GrabacionController extends ChangeNotifier {
     required this.repositorio,
     this.notificacion,
     DateTime Function()? ahora,
-  }) : _ahora = ahora ?? DateTime.now;
+    PerfilGps Function()? perfilGps,
+  }) : _ahora = ahora ?? DateTime.now,
+       _perfilGps = perfilGps ?? (() => PerfilGps.equilibrada);
 
   final ServicioUbicacion ubicacion;
   final RepositorioSesiones repositorio;
   final ServicioNotificacionRuta? notificacion;
   final DateTime Function() _ahora;
+  final PerfilGps Function() _perfilGps;
 
   EstadoGrabacion _estado = EstadoGrabacion.inactivo;
   Actividad _actividad = Actividad.correr;
+  PerfilGps _perfilActivo = PerfilGps.equilibrada;
   DateTime? _inicio;
   DateTime? _inicioTramo;
   Duration _duracionAcumulada = Duration.zero;
@@ -55,6 +61,15 @@ class GrabacionController extends ChangeNotifier {
   bool _errorGuardado = false;
   bool _guardandoBorrador = false;
   bool _disposed = false;
+  bool _calentando = false;
+  DateTime? _inicioCalentamiento;
+  int _puntosBuenos = 0;
+
+  FiltroRuta get _filtroActivo => FiltroRuta(
+    precisionMaxima: _perfilActivo.precisionMaxima,
+    velocidadMaxima: _actividad.velocidadMaximaPlausible,
+    calentamiento: Duration.zero,
+  );
 
   EstadoGrabacion get estado => _estado;
   Actividad get actividad => _actividad;
@@ -67,6 +82,19 @@ class GrabacionController extends ChangeNotifier {
   bool get sinSenal => _sinSenal;
   bool get avisoNotificaciones => _avisoNotificaciones;
   bool get errorGuardado => _errorGuardado;
+  double? get precisionActual => _ultimaPosicion?.precision;
+  bool get senalDebil {
+    final posicion = _ultimaPosicion;
+    if (posicion == null) return false;
+    final ultimo = _ultimoPuntoRecibido;
+    if (ultimo == null) return true;
+    final sinPunto = _ahora().difference(ultimo) > const Duration(seconds: 5);
+    final precisionMala =
+        posicion.precision != null &&
+        posicion.precision! > _perfilActivo.precisionMaxima;
+    return sinPunto || precisionMala;
+  }
+
   List<PuntoRuta> get puntos => List.unmodifiable(_puntos);
   PuntoGps? get ultimaPosicion => _ultimaPosicion;
   double get distanciaMetros => _acumulador.distanciaMetros;
@@ -94,12 +122,12 @@ class GrabacionController extends ChangeNotifier {
 
   double? get velocidadActual {
     final ultimo = _puntos.isEmpty ? null : _puntos.last;
-    if (ultimo?.velocidad != null && ultimo!.velocidad! > 0.5) {
+    if (ultimo == null || _puntos.length < 2) return null;
+    final anterior = _puntos[_puntos.length - 2];
+    if (anterior.segmento != ultimo.segmento) return null;
+    if (ultimo.velocidad != null) {
       return ultimo.velocidad;
     }
-    if (_puntos.length < 2) return ultimo?.velocidad;
-    final anterior = _puntos[_puntos.length - 2];
-    if (anterior.segmento != ultimo!.segmento) return ultimo.velocidad;
     final segundos =
         ultimo.tiempo.difference(anterior.tiempo).inMilliseconds / 1000;
     if (segundos <= 0) return ultimo.velocidad;
@@ -164,8 +192,11 @@ class GrabacionController extends ChangeNotifier {
     _inicioTramo = _inicio;
     _duracionAcumulada = Duration.zero;
     _segmentoActual = 0;
+    _perfilActivo = _perfilGps();
     _puntos.clear();
     _acumulador.reiniciar();
+    _acumulador.filtro = _filtroActivo;
+    _iniciarCalentamiento();
     _ultimaPosicion = null;
     _ultimoPuntoRecibido = null;
     _ultimoAutoguardado = null;
@@ -223,6 +254,7 @@ class GrabacionController extends ChangeNotifier {
     }
     _abrirTramo();
     _segmentoActual += 1;
+    _iniciarCalentamiento();
     _sinSenal = true;
     _estado = EstadoGrabacion.grabando;
     await notificacion?.iniciar();
@@ -317,7 +349,9 @@ class GrabacionController extends ChangeNotifier {
     _segmentoActual = borrador.puntos.isEmpty
         ? 0
         : borrador.puntos.last.segmento;
+    _perfilActivo = _perfilGps();
     _acumulador.reiniciar();
+    _acumulador.filtro = _filtroActivo;
     for (final punto in borrador.puntos) {
       _acumulador.agregar(punto);
     }
@@ -361,16 +395,19 @@ class GrabacionController extends ChangeNotifier {
 
   void _suscribir() {
     _suscripcion?.cancel();
-    _suscripcion = ubicacion.posiciones().listen(
-      _alRecibirPunto,
-      onError: _alErrorUbicacion,
-      cancelOnError: false,
-    );
+    _suscripcion = ubicacion
+        .posiciones(_perfilActivo)
+        .listen(
+          _alRecibirPunto,
+          onError: _alErrorUbicacion,
+          cancelOnError: false,
+        );
   }
 
   void _alRecibirPunto(PuntoGps posicion) {
     if (_estado != EstadoGrabacion.grabando) return;
     _ultimaPosicion = posicion;
+    if (!_pasaCalentamiento(posicion)) return;
     final punto = PuntoRuta(
       latitud: posicion.latitud,
       longitud: posicion.longitud,
@@ -384,13 +421,38 @@ class GrabacionController extends ChangeNotifier {
     final anterior = _puntos.isEmpty || _puntos.last.segmento != _segmentoActual
         ? null
         : _puntos.last;
-    if (!puntoAceptable(anterior, punto)) return;
+    if (!puntoAceptable(anterior, punto, filtro: _filtroActivo)) return;
     _puntos.add(punto);
     _acumulador.agregar(punto);
     _ultimoPuntoRecibido = _ahora();
     _sinSenal = false;
     _talVezAutoguardar();
     notifyListeners();
+  }
+
+  void _iniciarCalentamiento() {
+    _calentando = true;
+    _inicioCalentamiento = _ahora();
+    _puntosBuenos = 0;
+  }
+
+  bool _pasaCalentamiento(PuntoGps posicion) {
+    if (!_calentando) return true;
+    final buena =
+        posicion.precision == null ||
+        posicion.precision! <= _perfilActivo.precisionMaxima;
+    _puntosBuenos = buena ? _puntosBuenos + 1 : 0;
+    final inicio = _inicioCalentamiento;
+    final pasaron5s =
+        inicio == null ||
+        _ahora().difference(inicio) >= const Duration(seconds: 5);
+    if (_puntosBuenos >= 2 || pasaron5s) {
+      _calentando = false;
+      _inicioCalentamiento = null;
+      _puntosBuenos = 0;
+      return true;
+    }
+    return false;
   }
 
   void _alErrorUbicacion(Object error) {
@@ -479,6 +541,10 @@ class GrabacionController extends ChangeNotifier {
     _inicioTramo = null;
     _duracionAcumulada = Duration.zero;
     _segmentoActual = 0;
+    _perfilActivo = PerfilGps.equilibrada;
+    _calentando = false;
+    _inicioCalentamiento = null;
+    _puntosBuenos = 0;
     _puntos.clear();
     _acumulador.reiniciar();
     _ultimaPosicion = null;

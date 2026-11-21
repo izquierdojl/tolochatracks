@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/calculos/calculos_ruta.dart';
+import 'package:tolochatracks/core/models/actividad.dart';
+import 'package:tolochatracks/core/models/filtro_ruta.dart';
+import 'package:tolochatracks/core/models/perfil_gps.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 
 PuntoRuta punto(
@@ -9,6 +12,7 @@ PuntoRuta punto(
   double? altitud,
   double? precision = 5,
   int segmento = 0,
+  double? velocidad,
 }) => PuntoRuta(
   latitud: latitud,
   longitud: longitud,
@@ -16,6 +20,7 @@ PuntoRuta punto(
   altitud: altitud,
   precision: precision,
   segmento: segmento,
+  velocidad: velocidad,
 );
 
 void main() {
@@ -40,7 +45,7 @@ void main() {
   });
 
   group('puntoAceptable', () {
-    test('rechaza una precisión peor de 100 metros', () {
+    test('rechaza una precisión peor que el umbral por defecto', () {
       expect(
         puntoAceptable(
           null,
@@ -132,6 +137,344 @@ void main() {
       expect(estadisticas.parciales, hasLength(2));
       expect(estadisticas.parciales[0].duracion, const Duration(minutes: 5));
       expect(estadisticas.parciales[1].duracion, const Duration(minutes: 5));
+    });
+  });
+
+  group('filtro por perfil y velocidad fiable', () {
+    test('la precisión depende del perfil', () {
+      final equilibrada = FiltroRuta.dePerfil(
+        PerfilGps.equilibrada,
+        Actividad.correr,
+      );
+      expect(
+        puntoAceptable(
+          null,
+          punto(latSevilla, lonSevilla, inicio, precision: 25),
+          filtro: equilibrada,
+        ),
+        isTrue,
+      );
+      expect(
+        puntoAceptable(
+          null,
+          punto(latSevilla, lonSevilla, inicio, precision: 35),
+          filtro: equilibrada,
+        ),
+        isFalse,
+      );
+      final ahorro = FiltroRuta.dePerfil(PerfilGps.ahorro, Actividad.correr);
+      expect(
+        puntoAceptable(
+          null,
+          punto(latSevilla, lonSevilla, inicio, precision: 35),
+          filtro: ahorro,
+        ),
+        isTrue,
+      );
+      expect(
+        puntoAceptable(
+          null,
+          punto(latSevilla, lonSevilla, inicio, precision: 45),
+          filtro: ahorro,
+        ),
+        isFalse,
+      );
+    });
+
+    test('la velocidad máxima depende de la actividad', () {
+      final primero = punto(latSevilla, lonSevilla, inicio);
+      final veinteMetros = punto(
+        latSevilla + 20 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(seconds: 2)),
+      );
+      final diezMetros = punto(
+        latSevilla + 10 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(seconds: 2)),
+      );
+      expect(
+        puntoAceptable(
+          primero,
+          veinteMetros,
+          filtro: FiltroRuta.dePerfil(PerfilGps.equilibrada, Actividad.correr),
+        ),
+        isFalse,
+      );
+      expect(
+        puntoAceptable(
+          primero,
+          diezMetros,
+          filtro: FiltroRuta.dePerfil(PerfilGps.equilibrada, Actividad.correr),
+        ),
+        isTrue,
+      );
+      expect(
+        puntoAceptable(
+          primero,
+          diezMetros,
+          filtro: FiltroRuta.dePerfil(PerfilGps.equilibrada, Actividad.caminar),
+        ),
+        isFalse,
+      );
+      expect(
+        puntoAceptable(
+          primero,
+          veinteMetros,
+          filtro: FiltroRuta.dePerfil(
+            PerfilGps.equilibrada,
+            Actividad.bicicleta,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('usa la menor entre la velocidad reportada y la derivada', () {
+      final filtro = const FiltroRuta(
+        precisionMaxima: 40,
+        velocidadMaxima: 120 / 3.6,
+        calentamiento: Duration.zero,
+      );
+      final acumulador = AcumuladorRuta(filtro: filtro);
+      acumulador.agregar(punto(latSevilla, lonSevilla, inicio));
+      acumulador.agregar(
+        punto(
+          latSevilla + 43.8 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 3)),
+          velocidad: 1.05,
+        ),
+      );
+      expect(acumulador.velocidadMaxima * 3.6, closeTo(3.8, 0.1));
+    });
+
+    test('el tope de actividad descarta el salto de 52,5 km/h', () {
+      final filtro = FiltroRuta.dePerfil(
+        PerfilGps.equilibrada,
+        Actividad.correr,
+        calentamiento: Duration.zero,
+      );
+      final acumulador = AcumuladorRuta(filtro: filtro);
+      acumulador.agregar(punto(latSevilla, lonSevilla, inicio));
+      acumulador.agregar(
+        punto(
+          latSevilla + 43.8 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 3)),
+          velocidad: 1.05,
+        ),
+      );
+      expect(acumulador.puntosValidos, 1);
+      expect(acumulador.velocidadMaxima, 0);
+    });
+
+    test('sin velocidad reportada usa una ventana de 10 s', () {
+      final filtro = const FiltroRuta(
+        precisionMaxima: 40,
+        velocidadMaxima: 120 / 3.6,
+        calentamiento: Duration.zero,
+      );
+      final acumulador = AcumuladorRuta(filtro: filtro);
+      for (var i = 0; i <= 9; i++) {
+        acumulador.agregar(
+          punto(
+            latSevilla + i * 3 / metroPorGradoLatitud,
+            lonSevilla,
+            inicio.add(Duration(seconds: i * 2)),
+          ),
+        );
+      }
+      acumulador.agregar(
+        punto(
+          latSevilla + 36.4 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(milliseconds: 19800)),
+        ),
+      );
+      expect(acumulador.velocidadMaxima * 3.6, lessThan(12));
+    });
+
+    test('el primer punto de un segmento no aporta velocidad', () {
+      final filtro = FiltroRuta.dePerfil(
+        PerfilGps.equilibrada,
+        Actividad.correr,
+        calentamiento: Duration.zero,
+      );
+      final acumulador = AcumuladorRuta(filtro: filtro);
+      acumulador.agregar(punto(latSevilla, lonSevilla, inicio, segmento: 0));
+      acumulador.agregar(
+        punto(
+          latSevilla + 20 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 1)),
+          segmento: 1,
+          velocidad: 33.9 / 3.6,
+        ),
+      );
+      expect(acumulador.puntosValidos, 2);
+      expect(acumulador.velocidadMaxima, 0);
+    });
+
+    test('la vista válida quita los fixes malos y conserva segmentos', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio, precision: 7),
+        punto(
+          latSevilla + 10 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 2)),
+          precision: 44.2,
+        ),
+        punto(
+          latSevilla + 20 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 4)),
+          precision: 54.7,
+        ),
+        punto(
+          latSevilla + 30 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 6)),
+          precision: 63.7,
+        ),
+        punto(
+          latSevilla + 40 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 8)),
+          precision: 9,
+          segmento: 1,
+        ),
+      ];
+      final validos = puntosValidosDeSesion(
+        puntos,
+        actividad: Actividad.correr,
+      );
+      expect(validos.map((p) => p.segmento), [0, 1]);
+      expect(validos.map((p) => p.precision), [7, 9]);
+    });
+
+    test('el máximo no incluye un pico de un solo punto', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio, velocidad: 0),
+        punto(
+          latSevilla + 3 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 2)),
+          velocidad: 1.6,
+        ),
+        punto(
+          latSevilla + 6 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 4)),
+          velocidad: 1.6,
+        ),
+        punto(
+          latSevilla + 50 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 6)),
+          velocidad: 1.05,
+        ),
+        punto(
+          latSevilla + 9 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 8)),
+          velocidad: 1.6,
+        ),
+        punto(
+          latSevilla + 12 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 10)),
+          velocidad: 1.6,
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(seconds: 10),
+        actividad: Actividad.correr,
+      );
+      expect(estadisticas.velocidadMaxima * 3.6, lessThan(6));
+      expect(
+        estadisticas.serieVelocidad.every((muestra) => muestra.y < 10),
+        isTrue,
+      );
+    });
+  });
+
+  group('sesión sintética tipo GPX real', () {
+    test('quita el pico de 52,5 y la pausa y deja un máximo creíble', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio, velocidad: 0),
+        punto(
+          latSevilla + 100 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 20)),
+          precision: 7,
+          velocidad: 1.6,
+        ),
+        punto(
+          latSevilla + 200 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 40)),
+          precision: 7,
+          velocidad: 3.0,
+        ),
+        punto(
+          latSevilla + 243.8 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 43)),
+          precision: 54.7,
+          velocidad: 1.05,
+        ),
+        punto(
+          latSevilla + 300 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 60)),
+          precision: 7,
+          velocidad: 1.6,
+        ),
+        punto(
+          latSevilla + 400 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 80)),
+          precision: 7,
+          velocidad: 1.6,
+        ),
+        punto(
+          latSevilla + 480 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 380)),
+          precision: 9,
+          segmento: 1,
+          velocidad: 3.0,
+        ),
+        punto(
+          latSevilla + 580 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 400)),
+          precision: 7,
+          segmento: 1,
+          velocidad: 1.6,
+        ),
+        punto(
+          latSevilla + 680 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 420)),
+          precision: 7,
+          segmento: 1,
+          velocidad: 1.6,
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 2),
+        inicio: inicio,
+        fin: inicio.add(const Duration(seconds: 420)),
+        actividad: Actividad.correr,
+      );
+      expect(estadisticas.distanciaMetros, closeTo(600, 5));
+      expect(estadisticas.velocidadMaxima * 3.6, closeTo(10.8, 0.2));
+      expect(estadisticas.serieDistancia.last.x, closeTo(2, 0.1));
+      expect(estadisticas.puntos, 8);
     });
   });
 

@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
+import 'package:tolochatracks/core/models/perfil_gps.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
 import 'package:tolochatracks/core/servicios/ubicacion.dart';
@@ -203,6 +204,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 20));
 
     expect(app.grabacion.estado, EstadoGrabacion.grabando);
+    await tester.pump();
+    expect(find.text('Buscando señal GPS'), findsOneWidget);
+    expect(find.textContaining('Aún no hay señal suficiente'), findsOneWidget);
+    await app.ubicacion.emitir(
+      PuntoGps(
+        latitud: 37.3891,
+        longitud: -5.9845,
+        tiempo: DateTime(2026, 11, 20, 21, 30),
+        altitud: 12,
+        precision: 5,
+      ),
+    );
     await app.ubicacion.emitir(
       PuntoGps(
         latitud: 37.3891,
@@ -213,7 +226,8 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('Grabando'), findsOneWidget);
+    expect(find.textContaining('Grabando'), findsOneWidget);
+    expect(find.textContaining('±5 m'), findsOneWidget);
     expect(find.text('Pausar'), findsOneWidget);
     expect(find.byType(MapaRuta), findsOneWidget);
     expect(app.grabacion.estado, EstadoGrabacion.grabando);
@@ -372,6 +386,13 @@ void main() {
           segmento: 0,
         ),
         PuntoRuta(
+          latitud: 37.3936,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 2)),
+          precision: 54.7,
+          segmento: 0,
+        ),
+        PuntoRuta(
           latitud: 37.3981,
           longitud: -5.9845,
           tiempo: inicio.add(const Duration(minutes: 5)),
@@ -408,6 +429,8 @@ void main() {
 
     final capa = tester.widget<PolylineLayer>(find.byType(PolylineLayer));
     expect(capa.polylines, hasLength(2));
+    final mapa = tester.widget<MapaRuta>(find.byType(MapaRuta));
+    expect(mapa.puntos, hasLength(4));
 
     await irAGraficos(tester);
     final grafico = tester.widget<LineChart>(find.byType(LineChart));
@@ -946,5 +969,57 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(app.configuracion.proveedorMapas, ProveedorMapas.openTopoMap);
+  });
+
+  testWidgets('Ajustes cambia el perfil GPS', (tester) async {
+    final app = await bombearApp(tester);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Calidad GPS'));
+    await tester.pumpAndSettle();
+    expect(find.text('Equilibrada'), findsOneWidget);
+
+    await tester.tap(find.text('Máxima'));
+    await tester.pumpAndSettle();
+    expect(app.configuracion.perfilGps, PerfilGps.maxima);
+    expect(find.textContaining('Más detalle'), findsOneWidget);
+
+    await tester.tap(find.text('Ahorro'));
+    await tester.pumpAndSettle();
+    expect(app.configuracion.perfilGps, PerfilGps.ahorro);
+  });
+
+  testWidgets('muestra la precisión y el aviso de señal débil', (tester) async {
+    final app = await bombearApp(tester);
+
+    await tester.ensureVisible(find.text('Empezar'));
+    await tester.tap(find.text('Empezar'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.text('Buscando señal GPS'), findsOneWidget);
+
+    PuntoGps punto(double precision) => PuntoGps(
+      latitud: 37.3891,
+      longitud: -5.9845,
+      tiempo: DateTime(2026, 11, 20, 21, 30),
+      precision: precision,
+    );
+
+    await app.ubicacion.emitir(punto(8));
+    await app.ubicacion.emitir(punto(8));
+    await tester.pump();
+    expect(find.textContaining('±8 m'), findsOneWidget);
+    expect(find.textContaining('Señal débil'), findsNothing);
+
+    await app.ubicacion.emitir(punto(35));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.textContaining('Señal débil'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await app.dispose();
   });
 }

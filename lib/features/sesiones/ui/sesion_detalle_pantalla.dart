@@ -37,6 +37,7 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
       duracionActiva: widget.sesion.duracionActiva,
       inicio: widget.sesion.inicio,
       fin: widget.sesion.fin,
+      actividad: widget.sesion.actividad,
     );
   }
 
@@ -259,7 +260,10 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
           ),
           const SizedBox(height: 16),
           MapaRuta(
-            puntos: sesion.puntos,
+            puntos: puntosValidosDeSesion(
+              sesion.puntos,
+              actividad: sesion.actividad,
+            ),
             altura: 280,
             proveedor: proveedorMapas,
           ),

@@ -35,6 +35,7 @@ Future<void> main() async {
     ubicacion: const ServicioUbicacionGeolocator(),
     repositorio: repositorio,
     notificacion: notificacion,
+    perfilGps: () => configuracion.perfilGps,
   );
   notificacion.acciones.listen((accion) async {
     switch (accion) {
