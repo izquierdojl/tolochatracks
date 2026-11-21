@@ -6,6 +6,7 @@ import 'package:tolochatracks/core/exportacion/gpx.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
+import 'package:tolochatracks/core/servicios/exportacion.dart';
 
 Sesion crearSesion({bool conAltitud = true}) {
   final inicio = DateTime(2026, 11, 20, 18, 30);
@@ -100,6 +101,33 @@ void main() {
     expect(archivos[0].mime, 'application/gpx+xml');
     expect(archivos[1].mime, 'application/json');
     expect(archivos[0].contenido, contains('<gpx'));
-    expect(archivos[1].contenido, contains('"formato": 1'));
+    expect(archivos[1].contenido, contains('"formato": 2'));
+  });
+
+  test('el resultado de borrado es correcto solo sin errores ni ausentes', () {
+    expect(
+      const ResultadoBorrado(
+        borrados: 2,
+        noEncontrados: 0,
+        errores: [],
+      ).correcto,
+      isTrue,
+    );
+    expect(
+      const ResultadoBorrado(
+        borrados: 1,
+        noEncontrados: 1,
+        errores: [],
+      ).correcto,
+      isFalse,
+    );
+    expect(
+      const ResultadoBorrado(
+        borrados: 1,
+        noEncontrados: 0,
+        errores: ['gpx: no se pudo borrar'],
+      ).correcto,
+      isFalse,
+    );
   });
 }

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'actividad.dart';
 import 'punto_ruta.dart';
 
-const formatoSesionActual = 1;
+const formatoSesionActual = 2;
 
 @immutable
 class Sesion {
@@ -17,6 +17,7 @@ class Sesion {
     required this.puntos,
     this.fin,
     this.formato = formatoSesionActual,
+    this.exportada = false,
   });
 
   final String id;
@@ -26,8 +27,20 @@ class Sesion {
   final DateTime? fin;
   final Duration duracionActiva;
   final List<PuntoRuta> puntos;
+  final bool exportada;
 
   bool get abierta => fin == null;
+
+  Sesion copiaCon({bool? exportada}) => Sesion(
+    id: id,
+    formato: formatoSesionActual,
+    actividad: actividad,
+    inicio: inicio,
+    fin: fin,
+    duracionActiva: duracionActiva,
+    puntos: puntos,
+    exportada: exportada ?? this.exportada,
+  );
 
   static String generarId(DateTime inicio) {
     final local = inicio.toLocal();
@@ -46,6 +59,7 @@ class Sesion {
     'inicio': inicio.toUtc().toIso8601String(),
     if (fin != null) 'fin': fin!.toUtc().toIso8601String(),
     'duracionSegundos': duracionActiva.inSeconds,
+    'exportada': exportada,
     'puntos': [for (final punto in puntos) punto.aJson()],
   };
 
@@ -81,6 +95,7 @@ class Sesion {
       fin: _fecha(json['fin']),
       duracionActiva: Duration(seconds: duracion is num ? duracion.toInt() : 0),
       puntos: List.unmodifiable(puntos),
+      exportada: json['exportada'] == true,
     );
   }
 

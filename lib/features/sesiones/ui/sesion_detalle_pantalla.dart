@@ -6,6 +6,7 @@ import '../../../core/calculos/calculos_ruta.dart';
 import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
+import '../../compartir/ui/compartir_controller.dart';
 import '../../configuracion/ui/configuracion_controller.dart';
 import '../../exportacion/ui/acciones_exportacion.dart';
 import '../../exportacion/ui/exportacion_controller.dart';
@@ -44,44 +45,56 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
     if (!disponible || !mounted) return;
     setState(() => _exportando = true);
     final exportacion = context.read<ExportacionController>();
+    final historial = context.read<HistorialController>();
     final resultado = await exportacion.exportar([widget.sesion]);
     if (!mounted) return;
     setState(() => _exportando = false);
+    final guardado = await historial.actualizarExportadas(
+      intentadas: {widget.sesion.id},
+      correctas: resultado?.sesionesExportadas ?? const <String>{},
+    );
+    if (!mounted) return;
+    if (resultado != null && !guardado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar el estado de exportación.'),
+        ),
+      );
+    }
     mostrarResultadoExportacion(context, resultado, exportacion.error);
   }
 
+  Future<void> _compartir() async {
+    final compartir = context.read<CompartirController>();
+    final exito = await compartir.compartir(widget.sesion);
+    if (!mounted || exito) return;
+    final mensaje = compartir.error ?? 'No se pudo compartir la ruta.';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(mensaje)));
+    compartir.limpiarError();
+  }
+
   Future<void> _eliminar() async {
-    final sesion = widget.sesion;
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final historial = context.read<HistorialController>();
-    final confirmar = await showDialog<bool>(
+    final exportacion = context.read<ExportacionController>();
+    final configuracion = context.read<ConfiguracionController>();
+    final sesion = historial.sesionPorId(widget.sesion.id) ?? widget.sesion;
+    final opciones = await showDialog<_OpcionesEliminacion>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar ruta'),
-        content: Text(
-          'Se borrará la ruta de ${sesion.actividad.etiqueta.toLowerCase()} del '
-          '${formatearFechaHora(sesion.inicio)}. Esta acción no se puede '
-          'deshacer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Eliminar'),
-          ),
-        ],
+      builder: (context) => _DialogoEliminarSesion(
+        sesion: sesion,
+        tieneDirectorio: configuracion.tieneDirectorio,
+        nombreDirectorio: configuracion.directorioExportacionNombre,
       ),
     );
-    if (confirmar != true || !mounted) return;
+    if (opciones == null || !mounted) return;
     setState(() => _eliminando = true);
     final eliminada = await historial.eliminar(sesion);
     if (!mounted) return;
-    setState(() => _eliminando = false);
     if (!eliminada) {
+      setState(() => _eliminando = false);
       messenger.showSnackBar(
         SnackBar(
           content: Text(historial.error ?? 'No se pudo eliminar la ruta.'),
@@ -89,8 +102,33 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
       );
       return;
     }
+    var mensaje = 'Ruta eliminada.';
+    if (opciones.borrarArchivos) {
+      final borrado = await exportacion.borrarArchivosDeSesion(sesion);
+      if (!mounted) return;
+      if (borrado == null) {
+        mensaje =
+            'Ruta eliminada; no se pudieron borrar los archivos exportados.';
+      } else if (!borrado.correcto) {
+        if (borrado.noEncontrados > 0 && borrado.errores.isEmpty) {
+          mensaje =
+              'Ruta eliminada; no se encontraron los archivos exportados en '
+              'la carpeta actual.';
+        } else if (borrado.errores.isNotEmpty) {
+          mensaje =
+              'Ruta eliminada; no se pudieron borrar '
+              '${borrado.errores.length} archivo(s) exportado(s).';
+        } else {
+          mensaje =
+              'Ruta eliminada; no se pudieron borrar todos los archivos '
+              'exportados.';
+        }
+      } else {
+        mensaje = 'Ruta y archivos exportados eliminados.';
+      }
+    }
     navigator.pop();
-    messenger.showSnackBar(const SnackBar(content: Text('Ruta eliminada.')));
+    messenger.showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   @override
@@ -99,7 +137,11 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
     final proveedorMapas = context
         .watch<ConfiguracionController>()
         .proveedorMapas;
+    final compartir = context.watch<CompartirController>();
+    final historial = context.watch<HistorialController>();
     final sesion = widget.sesion;
+    final sesionActual = historial.sesionPorId(sesion.id) ?? sesion;
+    final compartiendo = compartir.compartiendoSesion(sesion.id);
     final usaRitmo = sesion.actividad.usaRitmo;
     final color = sesion.actividad.color(context);
     return Scaffold(
@@ -108,6 +150,17 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
           '${sesion.actividad.etiqueta} · ${formatearFecha(sesion.inicio)}',
         ),
         actions: [
+          IconButton(
+            tooltip: 'Compartir ruta',
+            onPressed: compartir.compartiendo ? null : _compartir,
+            icon: compartiendo
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.share_outlined),
+          ),
           IconButton(
             tooltip: 'Exportar ruta',
             onPressed: _exportando ? null : _exportar,
@@ -169,6 +222,27 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
                           color: tema.colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      if (sesionActual.exportada) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: tema.colorScheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Exportada a disco',
+                              style: tema.textTheme.bodySmall?.copyWith(
+                                color: tema.colorScheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Text(
                         formatearDuracion(sesion.duracionActiva),
@@ -374,6 +448,88 @@ class _Dato extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OpcionesEliminacion {
+  const _OpcionesEliminacion({required this.borrarArchivos});
+
+  final bool borrarArchivos;
+}
+
+class _DialogoEliminarSesion extends StatefulWidget {
+  const _DialogoEliminarSesion({
+    required this.sesion,
+    required this.tieneDirectorio,
+    required this.nombreDirectorio,
+  });
+
+  final Sesion sesion;
+  final bool tieneDirectorio;
+  final String? nombreDirectorio;
+
+  @override
+  State<_DialogoEliminarSesion> createState() => _DialogoEliminarSesionState();
+}
+
+class _DialogoEliminarSesionState extends State<_DialogoEliminarSesion> {
+  bool _borrarArchivos = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final sesion = widget.sesion;
+    final nombre = widget.nombreDirectorio ?? 'la carpeta actual';
+    return AlertDialog(
+      title: const Text('Eliminar ruta'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Se borrará la ruta de '
+              '${sesion.actividad.etiqueta.toLowerCase()} del '
+              '${formatearFechaHora(sesion.inicio)}. Esta acción no se puede '
+              'deshacer.',
+            ),
+            if (sesion.exportada) ...[
+              const SizedBox(height: 12),
+              if (widget.tieneDirectorio)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _borrarArchivos,
+                  onChanged: (valor) =>
+                      setState(() => _borrarArchivos = valor ?? false),
+                  title: const Text(
+                    'Borrar también los archivos exportados (GPX y JSON)',
+                  ),
+                  subtitle: Text('Carpeta: $nombre'),
+                )
+              else
+                Text(
+                  'Esta ruta se exportó, pero no hay carpeta de exportación '
+                  'configurada; los archivos GPX y JSON no se pueden borrar '
+                  'desde la app.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.of(context)
+                  .pop(_OpcionesEliminacion(borrarArchivos: _borrarArchivos)),
+          child: const Text('Eliminar'),
         ),
       ],
     );

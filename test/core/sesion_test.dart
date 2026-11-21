@@ -45,6 +45,30 @@ void main() {
     expect(reconstruida.puntos.last.precision, isNull);
   });
 
+  test('la marca de exportación sobrevive al JSON', () {
+    final marcada = sesion.copiaCon(exportada: true);
+    final reconstruida = Sesion.desdeJson(marcada.aJson());
+
+    expect(reconstruida.exportada, isTrue);
+    expect(reconstruida.formato, formatoSesionActual);
+  });
+
+  test('una sesión antigua sin exportada se trata como no exportada', () {
+    final json = Map<String, Object?>.from(sesion.aJson())..remove('exportada');
+
+    expect(Sesion.desdeJson(json).exportada, isFalse);
+  });
+
+  test('copiaCon conserva los datos y actualiza la marca', () {
+    final copia = sesion.copiaCon(exportada: true);
+
+    expect(copia.id, sesion.id);
+    expect(copia.puntos, sesion.puntos);
+    expect(copia.exportada, isTrue);
+    expect(copia.formato, formatoSesionActual);
+    expect(sesion.exportada, isFalse);
+  });
+
   test('el id es único y seguro para un nombre de archivo', () {
     final otro = Sesion.generarId(inicio);
     expect(sesion.id, isNot(otro));

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
@@ -8,6 +9,7 @@ import 'package:tolochatracks/core/models/sesion.dart';
 import 'package:tolochatracks/core/servicios/ubicacion.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tolochatracks/core/models/proveedor_mapas.dart';
+import 'package:tolochatracks/features/compartir/ui/compartir_controller.dart';
 import 'package:tolochatracks/features/configuracion/data/configuracion_repositorio.dart';
 import 'package:tolochatracks/features/configuracion/ui/configuracion_controller.dart';
 import 'package:tolochatracks/features/exportacion/ui/exportacion_controller.dart';
@@ -27,6 +29,8 @@ class ControllersApp {
     required this.configuracion,
     required this.exportacion,
     required this.servicioExportacion,
+    required this.compartir,
+    required this.servicioCompartir,
   });
 
   final HistorialController historial;
@@ -36,6 +40,8 @@ class ControllersApp {
   final ConfiguracionController configuracion;
   final ExportacionController exportacion;
   final ServicioExportacionFalso servicioExportacion;
+  final CompartirController compartir;
+  final ServicioCompartirFalso servicioCompartir;
   bool _disposed = false;
 
   Future<void> dispose() async {
@@ -45,8 +51,35 @@ class ControllersApp {
     historial.dispose();
     configuracion.dispose();
     exportacion.dispose();
+    compartir.dispose();
     await ubicacion.cerrar();
   }
+}
+
+Sesion sesionDePrueba({
+  String id = 'compartir',
+  bool conPuntos = true,
+  bool exportada = false,
+}) {
+  final inicio = DateTime(2026, 11, 20, 18);
+  return Sesion(
+    id: id,
+    actividad: Actividad.correr,
+    inicio: inicio,
+    fin: inicio.add(const Duration(minutes: 20)),
+    duracionActiva: const Duration(minutes: 19),
+    exportada: exportada,
+    puntos: conPuntos
+        ? [
+            PuntoRuta(
+              latitud: 37.3891,
+              longitud: -5.9845,
+              tiempo: inicio,
+              precision: 5,
+            ),
+          ]
+        : const [],
+  );
 }
 
 void main() {
@@ -65,6 +98,7 @@ void main() {
     RepositorioSesionesFalso? repositorio,
     ServicioUbicacionFalso? ubicacion,
     ServicioExportacionFalso? servicioExportacion,
+    ServicioCompartirFalso? servicioCompartir,
   }) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(800, 1800);
@@ -75,6 +109,7 @@ void main() {
     final servicio = ubicacion ?? ServicioUbicacionFalso();
     final exportacionServicio =
         servicioExportacion ?? ServicioExportacionFalso();
+    final compartirServicio = servicioCompartir ?? ServicioCompartirFalso();
     final configuracion = ConfiguracionController(
       repositorio: ConfiguracionRepositorio(),
       exportacion: exportacionServicio,
@@ -83,6 +118,7 @@ void main() {
       servicio: exportacionServicio,
       configuracion: configuracion,
     );
+    final compartir = CompartirController(servicio: compartirServicio);
     final historial = HistorialController(repositorio: repo);
     final grabacion = GrabacionController(
       ubicacion: servicio,
@@ -100,6 +136,8 @@ void main() {
       configuracion: configuracion,
       exportacion: exportacion,
       servicioExportacion: exportacionServicio,
+      compartir: compartir,
+      servicioCompartir: compartirServicio,
     );
     addTearDown(app.dispose);
     await tester.pumpWidget(
@@ -108,6 +146,7 @@ void main() {
         grabacion: grabacion,
         configuracion: configuracion,
         exportacion: exportacion,
+        compartir: compartir,
       ),
     );
     await tester.pumpAndSettle();
@@ -296,6 +335,7 @@ void main() {
     expect(find.text('Altitud mínima'), findsOneWidget);
     expect(find.byType(MapaRuta), findsOneWidget);
     expect(find.byTooltip('Eliminar ruta'), findsOneWidget);
+    expect(find.text('Exportada a disco'), findsNothing);
 
     await irAGraficos(tester);
     expect(find.byType(LineChart), findsOneWidget);
@@ -379,6 +419,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Eliminar ruta'));
     await tester.pumpAndSettle();
+    expect(
+      find.text('Borrar también los archivos exportados (GPX y JSON)'),
+      findsNothing,
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
     await tester.pumpAndSettle();
 
@@ -450,6 +494,8 @@ void main() {
     expect(app.servicioExportacion.archivos, hasLength(2));
     expect(app.servicioExportacion.archivos.first.nombre, endsWith('.gpx'));
     expect(app.configuracion.tieneDirectorio, isTrue);
+    expect(app.historial.sesionPorId('exportar-detalle')!.exportada, isTrue);
+    expect(find.text('Exportada a disco'), findsOneWidget);
   });
 
   testWidgets('exporta todo el historial visible', (tester) async {
@@ -477,6 +523,329 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(app.servicioExportacion.archivos, hasLength(2));
+    expect(app.historial.sesionPorId('exportar-todo')!.exportada, isTrue);
+    expect(find.byTooltip('Exportada a disco'), findsOneWidget);
+  });
+
+  testWidgets('comparte una ruta desde el detalle sin carpeta', (tester) async {
+    final sesion = sesionDePrueba(id: 'compartir-detalle');
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+
+    expect(app.configuracion.tieneDirectorio, isFalse);
+    await tester.tap(find.byTooltip('Compartir ruta'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioCompartir.compartidas, hasLength(1));
+    expect(app.servicioCompartir.compartidas.single.id, sesion.id);
+    expect(app.configuracion.tieneDirectorio, isFalse);
+  });
+
+  testWidgets('comparte desde la tarjeta sin abrir el detalle', (tester) async {
+    final sesion = sesionDePrueba(id: 'compartir-historial');
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Compartir ruta'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioCompartir.compartidas, hasLength(1));
+    expect(app.servicioCompartir.compartidas.single.id, sesion.id);
+    expect(find.byTooltip('Eliminar ruta'), findsNothing);
+  });
+
+  testWidgets('avisa si la ruta no tiene puntos para compartir', (
+    tester,
+  ) async {
+    final sesion = sesionDePrueba(id: 'compartir-sin-puntos', conPuntos: false);
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Compartir ruta'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioCompartir.compartidas, isEmpty);
+    expect(
+      find.text('Esta ruta no tiene puntos para compartir.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('mantiene la ruta si falla el compartir', (tester) async {
+    final sesion = sesionDePrueba(id: 'compartir-error');
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+    app.servicioCompartir.fallar = true;
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Compartir ruta'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioCompartir.compartidas, isEmpty);
+    expect(find.text('No se pudo compartir la ruta.'), findsOneWidget);
+    expect(find.byTooltip('Eliminar ruta'), findsOneWidget);
+  });
+
+  testWidgets('una reexportación fallida quita el check', (tester) async {
+    final sesion = sesionDePrueba(id: 'exportar-fallido', exportada: true);
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+    await app.configuracion.elegirDirectorioExportacion();
+    await tester.pumpAndSettle();
+    app.servicioExportacion.fallar = true;
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Exportada a disco'), findsOneWidget);
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    expect(find.text('Exportada a disco'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Exportar ruta'));
+    await tester.pumpAndSettle();
+
+    expect(app.historial.sesionPorId('exportar-fallido')!.exportada, isFalse);
+    expect(find.text('Exportada a disco'), findsNothing);
+    expect(find.textContaining('No se pudo exportar'), findsOneWidget);
+  });
+
+  testWidgets('marca con un check las rutas exportadas en el historial', (
+    tester,
+  ) async {
+    final exportada = sesionDePrueba(id: 'exportada', exportada: true);
+    final pendiente = sesionDePrueba(id: 'pendiente');
+    await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [exportada, pendiente]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Exportada a disco'), findsOneWidget);
+  });
+
+  testWidgets('muestra Exportada a disco en el detalle', (tester) async {
+    final sesion = sesionDePrueba(id: 'detalle-exportada', exportada: true);
+    await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Exportada a disco'), findsOneWidget);
+  });
+
+  testWidgets('elimina la ruta y sus archivos exportados', (tester) async {
+    final sesion = sesionDePrueba(id: 'borrar-con-archivos', exportada: true);
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+    await app.configuracion.elegirDirectorioExportacion();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Eliminar ruta'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Borrar también los archivos exportados (GPX y JSON)'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.text('Borrar también los archivos exportados (GPX y JSON)'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioExportacion.nombresBorrados, hasLength(2));
+    expect(find.text('Todavía no hay rutas'), findsOneWidget);
+    expect(find.text('Ruta y archivos exportados eliminados.'), findsOneWidget);
+  });
+
+  testWidgets('conserva los archivos si no se marca la casilla', (
+    tester,
+  ) async {
+    final sesion = sesionDePrueba(id: 'borrar-sin-archivos', exportada: true);
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+    await app.configuracion.elegirDirectorioExportacion();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Eliminar ruta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioExportacion.nombresBorrados, isEmpty);
+    expect(find.text('Todavía no hay rutas'), findsOneWidget);
+    expect(find.text('Ruta eliminada.'), findsOneWidget);
+  });
+
+  testWidgets('explica que no hay carpeta al borrar una ruta exportada', (
+    tester,
+  ) async {
+    final sesion = sesionDePrueba(id: 'borrar-sin-carpeta', exportada: true);
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Eliminar ruta'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('no hay carpeta de exportación configurada'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Borrar también los archivos exportados (GPX y JSON)'),
+      findsNothing,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+    await tester.pumpAndSettle();
+
+    expect(app.servicioExportacion.nombresBorrados, isEmpty);
+    expect(find.text('Todavía no hay rutas'), findsOneWidget);
+    expect(find.text('Ruta eliminada.'), findsOneWidget);
+  });
+
+  testWidgets('informa si falla el borrado de los archivos', (tester) async {
+    final sesion = sesionDePrueba(id: 'borrar-fallo', exportada: true);
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+    await app.configuracion.elegirDirectorioExportacion();
+    await tester.pumpAndSettle();
+    app.servicioExportacion.errorBorrado = PlatformException(
+      code: 'sin_permiso',
+      message: 'La carpeta ya no es accesible.',
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Eliminar ruta'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.text('Borrar también los archivos exportados (GPX y JSON)'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Ruta eliminada; no se pudieron borrar los archivos exportados.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Todavía no hay rutas'), findsOneWidget);
+  });
+
+  testWidgets('informa si los archivos ya no están en la carpeta', (
+    tester,
+  ) async {
+    final sesion = sesionDePrueba(id: 'borrar-ausentes', exportada: true);
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+    await app.configuracion.elegirDirectorioExportacion();
+    await tester.pumpAndSettle();
+    app.servicioExportacion.noEncontrados = 1;
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Eliminar ruta'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.text('Borrar también los archivos exportados (GPX y JSON)'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Ruta eliminada; no se encontraron los archivos exportados en la '
+        'carpeta actual.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Todavía no hay rutas'), findsOneWidget);
   });
 
   testWidgets('Acerca de muestra versión, privacidad y licencias', (

@@ -116,4 +116,55 @@ void main() {
     expect(controlador.sesiones, hasLength(3));
     expect(controlador.error, isNotNull);
   });
+
+  test('marca las sesiones exportadas y conserva las no intentadas', () async {
+    await controlador.cargar();
+
+    final guardado = await controlador.actualizarExportadas(
+      intentadas: {'correr', 'bici'},
+      correctas: {'correr'},
+    );
+
+    expect(guardado, isTrue);
+    expect(controlador.sesionPorId('correr')!.exportada, isTrue);
+    expect(controlador.sesionPorId('bici')!.exportada, isFalse);
+    expect(controlador.sesionPorId('andar')!.exportada, isFalse);
+    expect(
+      repositorio.sesiones
+          .firstWhere((sesion) => sesion.id == 'correr')
+          .exportada,
+      isTrue,
+    );
+  });
+
+  test('una reexportación fallida desmarca solo las intentadas', () async {
+    await controlador.cargar();
+    await controlador.actualizarExportadas(
+      intentadas: {'correr', 'bici'},
+      correctas: {'correr', 'bici'},
+    );
+
+    final guardado = await controlador.actualizarExportadas(
+      intentadas: {'correr'},
+      correctas: {},
+    );
+
+    expect(guardado, isTrue);
+    expect(controlador.sesionPorId('correr')!.exportada, isFalse);
+    expect(controlador.sesionPorId('bici')!.exportada, isTrue);
+    expect(controlador.sesionPorId('andar')!.exportada, isFalse);
+  });
+
+  test('un fallo al guardar mantiene la marca en memoria y avisa', () async {
+    await controlador.cargar();
+    repositorio.fallarGuardado = true;
+
+    final guardado = await controlador.actualizarExportadas(
+      intentadas: {'correr'},
+      correctas: {'correr'},
+    );
+
+    expect(guardado, isFalse);
+    expect(controlador.sesionPorId('correr')!.exportada, isTrue);
+  });
 }
