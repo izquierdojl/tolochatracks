@@ -1,3 +1,5 @@
+import '../models/configuracion_parciales.dart';
+
 String _numero(double valor, int decimales) =>
     valor.toStringAsFixed(decimales).replaceAll('.', ',');
 
@@ -23,7 +25,7 @@ String formatearDuracion(Duration duracion) {
   return '$mm:$ss';
 }
 
-String formatearRitmo(double? metrosPorSegundo) {
+String formatearRitmoCorto(double? metrosPorSegundo) {
   if (metrosPorSegundo == null ||
       !metrosPorSegundo.isFinite ||
       metrosPorSegundo <= 0.05) {
@@ -34,16 +36,26 @@ String formatearRitmo(double? metrosPorSegundo) {
   final duracion = Duration(milliseconds: (segundosPorKm * 1000).round());
   final minutos = duracion.inMinutes;
   final segundos = duracion.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return '$minutos:$segundos /km';
+  return '$minutos:$segundos';
 }
 
-String formatearVelocidad(double? metrosPorSegundo) {
+String formatearRitmo(double? metrosPorSegundo) {
+  final corto = formatearRitmoCorto(metrosPorSegundo);
+  return corto == '—' ? corto : '$corto /km';
+}
+
+String formatearVelocidadCorto(double? metrosPorSegundo) {
   if (metrosPorSegundo == null ||
       !metrosPorSegundo.isFinite ||
       metrosPorSegundo < 0) {
     return '—';
   }
-  return '${_numero(metrosPorSegundo * 3.6, 1)} km/h';
+  return _numero(metrosPorSegundo * 3.6, 1);
+}
+
+String formatearVelocidad(double? metrosPorSegundo) {
+  final corto = formatearVelocidadCorto(metrosPorSegundo);
+  return corto == '—' ? corto : '$corto km/h';
 }
 
 String formatearDesnivel(double metros) {
@@ -51,9 +63,35 @@ String formatearDesnivel(double metros) {
   return '${metros.round()} m';
 }
 
+String formatearMetrosCorto(double? metros) {
+  if (metros == null || !metros.isFinite) return '—';
+  return _numero(metros, 0);
+}
+
 String formatearMetros(double metros, {int decimales = 0}) {
   if (!metros.isFinite) return '—';
   return '${_numero(metros, decimales)} m';
+}
+
+String etiquetaTramoParcial(
+  ConfiguracionParciales configuracion,
+  int numero, {
+  bool completo = true,
+}) {
+  if (!completo) return 'Final';
+  if (configuracion.esDistancia) {
+    final metros = numero * configuracion.valor;
+    if (configuracion.valor.remainder(1000) == 0) {
+      return 'Km ${metros ~/ 1000}';
+    }
+    if (metros < 1000) return '${metros.round()} m';
+    return 'Km ${_numero(metros / 1000, 1)}';
+  }
+  final minutos = numero * (configuracion.valor ~/ 60);
+  if (minutos < 60) return '$minutos min';
+  final horas = minutos ~/ 60;
+  final resto = minutos.remainder(60);
+  return resto == 0 ? '$horas h' : '$horas h $resto';
 }
 
 const _meses = [

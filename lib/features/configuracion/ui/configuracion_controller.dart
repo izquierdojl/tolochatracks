@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/models/configuracion_parciales.dart';
 import '../../../core/models/perfil_gps.dart';
 import '../../../core/models/proveedor_mapas.dart';
 import '../../../core/servicios/exportacion.dart';
@@ -19,6 +20,7 @@ class ConfiguracionController extends ChangeNotifier {
   ThemeMode get tema => _ajustes.tema;
   ProveedorMapas get proveedorMapas => _ajustes.proveedorMapas;
   PerfilGps get perfilGps => _ajustes.perfilGps;
+  ConfiguracionParciales get parciales => _ajustes.parciales;
   String? get directorioExportacionUri => _ajustes.directorioExportacionUri;
   String? get directorioExportacionNombre =>
       _ajustes.directorioExportacionNombre;
@@ -51,6 +53,13 @@ class ConfiguracionController extends ChangeNotifier {
   Future<void> cambiarPerfilGps(PerfilGps perfil) async {
     if (_ajustes.perfilGps == perfil) return;
     _ajustes = _ajustes.copyWith(perfilGps: perfil);
+    notifyListeners();
+    await repositorio.guardar(_ajustes);
+  }
+
+  Future<void> cambiarParciales(ConfiguracionParciales parciales) async {
+    if (_ajustes.parciales == parciales) return;
+    _ajustes = _ajustes.copyWith(parciales: parciales);
     notifyListeners();
     await repositorio.guardar(_ajustes);
   }

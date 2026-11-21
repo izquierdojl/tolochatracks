@@ -8,9 +8,10 @@ Preferencias persistentes de la app y pantalla de ajustes.
 ### Requirement: Preferencias persistentes
 
 La app SHALL recordar el tema (sistema, claro u oscuro), el proveedor de mapas
-(OpenStreetMap, OpenTopoMap, CyclOSM o sin mapas), la carpeta de exportación y el perfil
-de calidad GPS (Ahorro, Equilibrada o Máxima) entre arranques; los valores por defecto
-SHALL ser tema del sistema, OpenStreetMap, sin carpeta y Equilibrada.
+(OpenStreetMap, OpenTopoMap, CyclOSM o sin mapas), la carpeta de exportación, el perfil
+de calidad GPS (Ahorro, Equilibrada o Máxima) y los parciales (por distancia o por tiempo
+y su paso) entre arranques; los valores por defecto SHALL ser tema del sistema,
+OpenStreetMap, sin carpeta, Equilibrada y parciales cada 1 km.
 
 #### Scenario: Cambiar el tema
 
@@ -28,18 +29,29 @@ SHALL ser tema del sistema, OpenStreetMap, sin carpeta y Equilibrada.
 - **THEN** la siguiente grabación usa el perfil Máxima y la elección se conserva al
   reiniciar
 
+#### Scenario: Cambiar los parciales
+
+- **WHEN** el usuario elige parciales cada 5 minutos
+- **THEN** el detalle usa ese paso y la elección se conserva al reiniciar
+
 #### Scenario: Primera apertura
 
 - **WHEN** no hay preferencias guardadas
-- **THEN** la app usa el tema del sistema, OpenStreetMap, sin carpeta y el perfil
-  Equilibrada
+- **THEN** la app usa el tema del sistema, OpenStreetMap, sin carpeta, el perfil
+  Equilibrada y parciales cada 1 km
+
+#### Scenario: Valor guardado inválido
+
+- **WHEN** la preferencia guardada no es un modo o un paso admitido
+- **THEN** la app usa parciales cada 1 km sin romper el arranque
 
 ### Requirement: Pantalla de Ajustes
 
 Ajustes SHALL permitir cambiar el tema, elegir el proveedor de mapas o desactivarlos,
 elegir o quitar la carpeta de exportación, elegir el perfil de calidad GPS (Ahorro,
-Equilibrada o Máxima) con una explicación del intercambio entre precisión y batería, y
-abrir la pantalla Acerca de, con textos en español y sin opciones que no funcionen.
+Equilibrada o Máxima) con una explicación del intercambio entre precisión y batería,
+elegir los parciales (por distancia o por tiempo y su paso) y abrir la pantalla Acerca de,
+con textos en español y sin opciones que no funcionen.
 
 #### Scenario: Quitar la carpeta
 
@@ -61,6 +73,16 @@ abrir la pantalla Acerca de, con textos en español y sin opciones que no funcio
 
 - **WHEN** el usuario abre Ajustes sin haber elegido perfil
 - **THEN** aparece seleccionado Equilibrada
+
+#### Scenario: Elegir parciales
+
+- **WHEN** el usuario abre la sección Parciales, elige Por tiempo y 5 minutos
+- **THEN** la preferencia queda guardada y el siguiente detalle usa tramos de 5 min
+
+#### Scenario: Parciales por defecto
+
+- **WHEN** el usuario abre Ajustes sin haber elegido parciales
+- **THEN** aparece «Cada 1 km» y el detalle usa parciales por kilómetro
 
 ### Requirement: Exención de optimización de batería
 

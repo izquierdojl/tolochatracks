@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
+import 'package:tolochatracks/core/models/configuracion_parciales.dart';
 import 'package:tolochatracks/core/models/perfil_gps.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
@@ -356,17 +357,89 @@ void main() {
     expect(find.byType(LineChart), findsOneWidget);
     expect(find.text('Parciales'), findsOneWidget);
 
-    await tester.tap(find.text('Velocidad'));
+    await tester.tap(find.byKey(const Key('grafico-metrica')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Velocidad').last);
     await tester.pumpAndSettle();
     expect(find.byType(LineChart), findsOneWidget);
 
-    await tester.tap(find.text('Altitud'));
+    await tester.tap(find.byKey(const Key('grafico-metrica')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Altitud').last);
     await tester.pumpAndSettle();
     expect(find.byType(LineChart), findsOneWidget);
 
-    await tester.tap(find.text('Por minuto'));
+    await tester.tap(find.byKey(const Key('grafico-metrica')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Por minuto').last);
     await tester.pumpAndSettle();
     expect(find.byType(BarChart), findsOneWidget);
+  });
+
+  testWidgets('cambia los parciales desde el detalle y los persiste', (
+    tester,
+  ) async {
+    final inicio = DateTime(2026, 11, 20, 18);
+    final sesion = Sesion(
+      id: 'detalle-parciales',
+      actividad: Actividad.senderismo,
+      inicio: inicio,
+      fin: inicio.add(const Duration(minutes: 40)),
+      duracionActiva: const Duration(minutes: 38),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          altitud: 100,
+          precision: 5,
+        ),
+        PuntoRuta(
+          latitud: 37.3936,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 19)),
+          altitud: 130,
+          precision: 5,
+        ),
+        PuntoRuta(
+          latitud: 37.3981,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 38)),
+          altitud: 160,
+          precision: 5,
+        ),
+      ],
+    );
+    final app = await bombearApp(
+      tester,
+      repositorio: RepositorioSesionesFalso(sesiones: [sesion]),
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('20 nov 2026'));
+    await tester.pumpAndSettle();
+    await irAGraficos(tester);
+
+    final boton = find.byKey(const Key('parciales-configurar'));
+    await tester.ensureVisible(boton);
+    await tester.tap(boton);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Por tiempo'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('5 min'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('selector-parciales-listo')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Cada 5 min'), findsOneWidget);
+    expect(
+      app.configuracion.parciales,
+      ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+    );
   });
 
   testWidgets('el detalle separa la pausa y usa tiempo activo', (tester) async {
@@ -468,7 +541,9 @@ void main() {
     expect(find.text('—'), findsWidgets);
 
     await irAGraficos(tester);
-    await tester.tap(find.text('Altitud'));
+    await tester.tap(find.byKey(const Key('grafico-metrica')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Altitud').last);
     await tester.pumpAndSettle();
     expect(find.text('Esta ruta no tiene datos de altitud.'), findsOneWidget);
   });

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/calculos/calculos_ruta.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
+import 'package:tolochatracks/core/models/configuracion_parciales.dart';
+import 'package:tolochatracks/core/models/estadisticas_ruta.dart';
 import 'package:tolochatracks/core/models/filtro_ruta.dart';
 import 'package:tolochatracks/core/models/perfil_gps.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
@@ -644,6 +646,57 @@ void main() {
       expect(estadisticas.serieAltitud.last.y, closeTo(110, 20));
     });
 
+    test('genera las series de velocidad y altitud frente a tiempo', () {
+      final estadisticas = calcularEstadisticas(
+        rutaDeEjemplo(),
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+      );
+      expect(estadisticas.serieVelocidadTiempo, isNotEmpty);
+      expect(estadisticas.serieVelocidadTiempo.last.x, closeTo(15, 0.1));
+      expect(
+        estadisticas.serieVelocidadTiempo.every(
+          (m) => m.y.isFinite && m.y >= 0,
+        ),
+        isTrue,
+      );
+      expect(estadisticas.serieAltitudTiempo, isNotEmpty);
+      expect(estadisticas.serieAltitudTiempo.last.x, closeTo(15, 0.1));
+      expect(estadisticas.serieAltitudTiempo.last.y, closeTo(110, 20));
+    });
+
+    test('las series por tiempo usan tiempo activo y no la pausa', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(
+          latSevilla + 1000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 5)),
+        ),
+        punto(
+          latSevilla + 1080 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 20)),
+          segmento: 1,
+        ),
+        punto(
+          latSevilla + 2080 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 25)),
+          segmento: 1,
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 10),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 25)),
+      );
+      expect(estadisticas.serieVelocidadTiempo.last.x, closeTo(10, 0.2));
+      expect(estadisticas.serieAltitudTiempo, isEmpty);
+    });
+
     test('genera parciales por km con el último tramo incompleto', () {
       final estadisticas = calcularEstadisticas(
         rutaDeEjemplo(),
@@ -741,5 +794,406 @@ void main() {
       expect(estadisticas.parciales, isEmpty);
       expect(estadisticas.porMinuto, isEmpty);
     });
+  });
+
+  group('parciales configurables', () {
+    List<PuntoRuta> rutaDeEjemplo() => [
+      punto(latSevilla, lonSevilla, inicio, altitud: 100),
+      punto(
+        latSevilla + 1000 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(minutes: 5)),
+        altitud: 130,
+      ),
+      punto(
+        latSevilla + 2500 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(minutes: 15)),
+        altitud: 110,
+      ),
+    ];
+
+    List<PuntoRuta> rutaDeTresKilometros() => [
+      punto(latSevilla, lonSevilla, inicio, altitud: 100),
+      punto(
+        latSevilla + 1000 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(minutes: 4)),
+        altitud: 110,
+      ),
+      punto(
+        latSevilla + 2000 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(minutes: 10)),
+        altitud: 90,
+      ),
+      punto(
+        latSevilla + 3000 / metroPorGradoLatitud,
+        lonSevilla,
+        inicio.add(const Duration(minutes: 15)),
+        altitud: 120,
+      ),
+    ];
+
+    test('por distancia cada 500 m genera cinco tramos', () {
+      final estadisticas = calcularEstadisticas(
+        rutaDeEjemplo(),
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+        parciales: ConfiguracionParciales.distancia(500),
+      );
+      expect(estadisticas.parciales, hasLength(5));
+      expect(estadisticas.parciales.every((p) => p.completo), isTrue);
+      expect(estadisticas.parciales.first.distanciaMetros, closeTo(500, 1));
+      expect(estadisticas.parciales.last.distanciaMetros, closeTo(500, 1));
+    });
+
+    test('por distancia cada 100 m genera veinticinco tramos', () {
+      final estadisticas = calcularEstadisticas(
+        rutaDeEjemplo(),
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+        parciales: ConfiguracionParciales.distancia(100),
+      );
+      expect(estadisticas.parciales, hasLength(25));
+      expect(estadisticas.parciales.every((p) => p.completo), isTrue);
+      expect(estadisticas.parciales.first.distanciaMetros, closeTo(100, 1));
+    });
+
+    test('la altitud media usa los puntos del tramo', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio, altitud: 100),
+        punto(
+          latSevilla + 300 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 2)),
+          altitud: 110,
+        ),
+        punto(
+          latSevilla + 700 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 5)),
+          altitud: 120,
+        ),
+        punto(
+          latSevilla + 1200 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 9)),
+          altitud: 130,
+        ),
+        punto(
+          latSevilla + 1700 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 13)),
+          altitud: 140,
+        ),
+        punto(
+          latSevilla + 2200 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 17)),
+          altitud: 150,
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 17),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 17)),
+        parciales: ConfiguracionParciales.distancia(1000),
+      );
+      expect(estadisticas.parciales, hasLength(3));
+      expect(estadisticas.parciales[0].altitudMedia, closeTo(110, 0.01));
+      expect(estadisticas.parciales[1].altitudMedia, closeTo(135, 0.01));
+      expect(estadisticas.parciales[2].altitudMedia, closeTo(150, 0.01));
+    });
+
+    test('por tiempo cada 5 min genera tres tramos', () {
+      final estadisticas = calcularEstadisticas(
+        rutaDeEjemplo(),
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+        parciales: ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+      );
+      expect(estadisticas.parciales, hasLength(3));
+      expect(estadisticas.parciales.every((p) => p.completo), isTrue);
+      expect(estadisticas.parciales[0].distanciaMetros, closeTo(1000, 5));
+      expect(estadisticas.parciales[1].distanciaMetros, closeTo(750, 5));
+      expect(estadisticas.parciales[2].distanciaMetros, closeTo(750, 5));
+      expect(
+        estadisticas.parciales.every(
+          (p) => p.duracion == const Duration(minutes: 5),
+        ),
+        isTrue,
+      );
+    });
+
+    test('el modo tiempo excluye la pausa', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(
+          latSevilla + 1000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 5)),
+        ),
+        punto(
+          latSevilla + 1080 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 20)),
+          segmento: 1,
+        ),
+        punto(
+          latSevilla + 2080 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 25)),
+          segmento: 1,
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 10),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 25)),
+        parciales: ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+      );
+      expect(estadisticas.parciales, hasLength(2));
+      expect(estadisticas.parciales[0].distanciaMetros, closeTo(1000, 5));
+      expect(estadisticas.parciales[1].distanciaMetros, closeTo(1000, 5));
+      expect(
+        estadisticas.parciales.every(
+          (p) => p.duracion == const Duration(minutes: 5),
+        ),
+        isTrue,
+      );
+    });
+
+    test('el tramo final de tiempo respeta los 10 s', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(
+          latSevilla + 1000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 6)),
+        ),
+        punto(
+          latSevilla + 2000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 12)),
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 12),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 12)),
+        parciales: ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+      );
+      expect(estadisticas.parciales, hasLength(3));
+      expect(estadisticas.parciales[2].completo, isFalse);
+      expect(estadisticas.parciales[2].duracion, const Duration(minutes: 2));
+    });
+
+    test('un resto de tiempo menor de 10 s no genera tramo final', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(
+          latSevilla + 1000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 5)),
+        ),
+        punto(
+          latSevilla + 2000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 10, seconds: 5)),
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 10, seconds: 5),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 10, seconds: 5)),
+        parciales: ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+      );
+      expect(estadisticas.parciales, hasLength(2));
+      expect(estadisticas.parciales.every((p) => p.completo), isTrue);
+    });
+
+    test('menos de 10 segundos no genera parciales por tiempo', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(
+          latSevilla + 10 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(seconds: 5)),
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(seconds: 5),
+        inicio: inicio,
+        fin: inicio.add(const Duration(seconds: 5)),
+        parciales: ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+      );
+      expect(estadisticas.parciales, isEmpty);
+    });
+
+    test('marca el más rápido y el más lento entre completos', () {
+      final estadisticas = calcularEstadisticas(
+        rutaDeTresKilometros(),
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+      );
+      expect(estadisticas.parciales, hasLength(3));
+      expect(estadisticas.parciales[0].destacado, DestacadoParcial.masRapido);
+      expect(estadisticas.parciales[1].destacado, DestacadoParcial.masLento);
+      expect(estadisticas.parciales[2].destacado, DestacadoParcial.ninguno);
+    });
+
+    test('el tramo incompleto no compite por el más rápido', () {
+      final puntos = [
+        ...rutaDeTresKilometros(),
+        punto(
+          latSevilla + 3500 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 15, seconds: 30)),
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 15, seconds: 30),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15, seconds: 30)),
+      );
+      expect(estadisticas.parciales, hasLength(4));
+      expect(estadisticas.parciales.last.completo, isFalse);
+      expect(estadisticas.parciales.last.destacado, DestacadoParcial.ninguno);
+      expect(estadisticas.parciales[0].destacado, DestacadoParcial.masRapido);
+    });
+
+    test('con menos de tres tramos completos no hay destacados', () {
+      final estadisticas = calcularEstadisticas(
+        rutaDeEjemplo(),
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+      );
+      expect(estadisticas.parciales, hasLength(3));
+      expect(
+        estadisticas.parciales.every(
+          (p) => p.destacado == DestacadoParcial.ninguno,
+        ),
+        isTrue,
+      );
+    });
+
+    test('un empate no marca a nadie', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(
+          latSevilla + 1000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 5)),
+        ),
+        punto(
+          latSevilla + 2000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 10)),
+        ),
+        punto(
+          latSevilla + 3000 / metroPorGradoLatitud,
+          lonSevilla,
+          inicio.add(const Duration(minutes: 15)),
+        ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+      );
+      expect(estadisticas.parciales, hasLength(3));
+      expect(
+        estadisticas.parciales.every(
+          (p) => p.destacado == DestacadoParcial.ninguno,
+        ),
+        isTrue,
+      );
+    });
+
+    test('sin movimiento no hay destacados', () {
+      final puntos = [
+        punto(latSevilla, lonSevilla, inicio),
+        punto(latSevilla, lonSevilla, inicio.add(const Duration(minutes: 5))),
+        punto(latSevilla, lonSevilla, inicio.add(const Duration(minutes: 10))),
+        punto(latSevilla, lonSevilla, inicio.add(const Duration(minutes: 15))),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 15),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 15)),
+        parciales: ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+      );
+      expect(estadisticas.parciales, hasLength(3));
+      expect(
+        estadisticas.parciales.every(
+          (p) => p.destacado == DestacadoParcial.ninguno,
+        ),
+        isTrue,
+      );
+    });
+
+    test('una ruta de 21 km con 100 m genera 210 tramos', () {
+      final puntos = [
+        for (var i = 0; i <= 210; i++)
+          punto(
+            latSevilla + i * 100 / metroPorGradoLatitud,
+            lonSevilla,
+            inicio.add(Duration(seconds: i * 30)),
+          ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 105),
+        inicio: inicio,
+        fin: inicio.add(const Duration(minutes: 105)),
+        parciales: ConfiguracionParciales.distancia(100),
+      );
+      expect(estadisticas.parciales, hasLength(210));
+    });
+
+    test(
+      'sin configuración usa 1 km y las otras opciones cambian la lista',
+      () {
+        final porDefecto = calcularEstadisticas(
+          rutaDeEjemplo(),
+          duracionActiva: const Duration(minutes: 15),
+          inicio: inicio,
+          fin: inicio.add(const Duration(minutes: 15)),
+        );
+        final quinientos = calcularEstadisticas(
+          rutaDeEjemplo(),
+          duracionActiva: const Duration(minutes: 15),
+          inicio: inicio,
+          fin: inicio.add(const Duration(minutes: 15)),
+          parciales: ConfiguracionParciales.distancia(500),
+        );
+        final cincoMinutos = calcularEstadisticas(
+          rutaDeEjemplo(),
+          duracionActiva: const Duration(minutes: 15),
+          inicio: inicio,
+          fin: inicio.add(const Duration(minutes: 15)),
+          parciales: ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+        );
+        expect(porDefecto.parciales, hasLength(3));
+        expect(quinientos.parciales, hasLength(5));
+        expect(cincoMinutos.parciales, hasLength(3));
+        expect(porDefecto.parciales[1].distanciaMetros, closeTo(1000, 5));
+        expect(cincoMinutos.parciales[1].distanciaMetros, closeTo(750, 5));
+      },
+    );
   });
 }

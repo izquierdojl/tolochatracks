@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/models/perfil_gps.dart';
 import '../../../core/models/proveedor_mapas.dart';
 import '../../../core/servicios/bateria.dart';
+import '../../../core/widgets/selector_parciales.dart';
 import 'acerca_de_pantalla.dart';
 import 'configuracion_controller.dart';
 
@@ -53,6 +54,25 @@ class _ConfiguracionPantallaState extends State<ConfiguracionPantalla>
     if (directorio == null && error != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  Future<void> _elegirParciales(BuildContext context) async {
+    final configuracion = context.read<ConfiguracionController>();
+    final nueva = await mostrarSelectorParciales(
+      context,
+      actual: configuracion.parciales,
+    );
+    if (nueva == null || !context.mounted) return;
+    try {
+      await configuracion.cambiarParciales(nueva);
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar la preferencia de parciales.'),
+        ),
+      );
     }
   }
 
@@ -282,6 +302,17 @@ class _ConfiguracionPantallaState extends State<ConfiguracionPantalla>
                 ),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _Seccion(titulo: 'Parciales'),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.stacked_bar_chart),
+            title: const Text('Parciales por defecto'),
+            subtitle: Text(configuracion.parciales.descripcion),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _elegirParciales(context),
           ),
         ),
         const SizedBox(height: 20),

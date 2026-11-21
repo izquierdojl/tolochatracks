@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../../../app/theme/actividad_visual.dart';
 import '../../../core/calculos/calculos_ruta.dart';
+import '../../../core/models/configuracion_parciales.dart';
 import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
+import '../../../core/widgets/selector_parciales.dart';
 import '../../compartir/ui/compartir_controller.dart';
 import '../../configuracion/ui/configuracion_controller.dart';
 import '../../exportacion/ui/acciones_exportacion.dart';
@@ -25,20 +27,47 @@ class SesionDetallePantalla extends StatefulWidget {
 }
 
 class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
-  late final EstadisticasRuta _estadisticas;
+  late EstadisticasRuta _estadisticas;
+  late ConfiguracionParciales _parciales;
   bool _eliminando = false;
   bool _exportando = false;
 
   @override
   void initState() {
     super.initState();
-    _estadisticas = calcularEstadisticas(
+    _parciales = context.read<ConfiguracionController>().parciales;
+    _estadisticas = _calcularEstadisticas(_parciales);
+  }
+
+  EstadisticasRuta _calcularEstadisticas(ConfiguracionParciales parciales) {
+    return calcularEstadisticas(
       widget.sesion.puntos,
       duracionActiva: widget.sesion.duracionActiva,
       inicio: widget.sesion.inicio,
       fin: widget.sesion.fin,
       actividad: widget.sesion.actividad,
+      parciales: parciales,
     );
+  }
+
+  Future<void> _configurarParciales() async {
+    final configuracion = context.read<ConfiguracionController>();
+    final nueva = await mostrarSelectorParciales(context, actual: _parciales);
+    if (!mounted || nueva == null || nueva == _parciales) return;
+    setState(() {
+      _parciales = nueva;
+      _estadisticas = _calcularEstadisticas(nueva);
+    });
+    try {
+      await configuracion.cambiarParciales(nueva);
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar la preferencia de parciales.'),
+        ),
+      );
+    }
   }
 
   Future<void> _exportar() async {
@@ -346,6 +375,8 @@ class _SesionDetallePantallaState extends State<SesionDetallePantalla> {
           TablaParciales(
             estadisticas: _estadisticas,
             actividad: sesion.actividad,
+            configuracion: _parciales,
+            onConfigurar: _configurarParciales,
           ),
           const SizedBox(height: 12),
           Card(
