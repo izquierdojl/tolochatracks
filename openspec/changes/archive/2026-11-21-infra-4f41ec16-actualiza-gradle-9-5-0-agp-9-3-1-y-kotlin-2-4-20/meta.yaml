@@ -1,0 +1,8 @@
+tipo: infra
+id: 4f41ec16
+titulo: "Actualiza Gradle 9.5.0, AGP 9.3.1 y Kotlin 2.4.20"
+autor:
+  nombre: "izquierdojl"
+  email: "jlizquierdo@jlizquierdo.com"
+fecha: "2026-11-21T18:27:41+01:00"
+branch: dev
