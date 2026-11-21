@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../models/perfil_gps.dart';
+
 enum PermisoUbicacion {
   concedido,
   denegado,
@@ -38,9 +40,35 @@ abstract interface class ServicioUbicacion {
   Future<PermisoUbicacion> asegurarPermiso();
   Future<bool> servicioActivo();
   Future<PuntoGps?> posicionActual();
-  Stream<PuntoGps> posiciones();
+  Stream<PuntoGps> posiciones(PerfilGps perfil);
   Future<void> abrirAjustesPermiso();
   Future<void> abrirAjustesUbicacion();
+}
+
+AndroidSettings ajustesAndroidPara(PerfilGps perfil) => AndroidSettings(
+  accuracy: perfil.calidad == CalidadGps.alta
+      ? LocationAccuracy.high
+      : LocationAccuracy.medium,
+  distanceFilter: perfil.distanciaMinima,
+  intervalDuration: perfil.intervalo,
+  forceLocationManager: true,
+  useMSLAltitude: true,
+);
+
+PuntoGps convertirPosicion(Position posicion, {DateTime Function()? ahora}) {
+  final referencia = (ahora ?? DateTime.now)();
+  final tiempo = posicion.timestamp;
+  return PuntoGps(
+    latitud: posicion.latitude,
+    longitud: posicion.longitude,
+    tiempo: tiempo.isAfter(referencia.subtract(const Duration(minutes: 5)))
+        ? tiempo
+        : referencia,
+    altitud: posicion.altitude,
+    precision: posicion.accuracy > 0 ? posicion.accuracy : null,
+    velocidad: posicion.hasSpeed ? posicion.speed : null,
+    rumbo: posicion.heading >= 0 ? posicion.heading : null,
+  );
 }
 
 class ServicioUbicacionGeolocator implements ServicioUbicacion {
@@ -106,11 +134,11 @@ class ServicioUbicacionGeolocator implements ServicioUbicacion {
           timeLimit: Duration(seconds: 8),
         ),
       );
-      return _convertir(posicion);
+      return convertirPosicion(posicion);
     } on Object {
       try {
         final ultima = await Geolocator.getLastKnownPosition();
-        return ultima == null ? null : _convertir(ultima);
+        return ultima == null ? null : convertirPosicion(ultima);
       } on Object {
         return null;
       }
@@ -118,24 +146,20 @@ class ServicioUbicacionGeolocator implements ServicioUbicacion {
   }
 
   @override
-  Stream<PuntoGps> posiciones() {
+  Stream<PuntoGps> posiciones(PerfilGps perfil) {
     final LocationSettings ajustes;
     if (Platform.isAndroid) {
-      ajustes = AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 3,
-        intervalDuration: const Duration(seconds: 2),
-        forceLocationManager: true,
-        useMSLAltitude: true,
-      );
+      ajustes = ajustesAndroidPara(perfil);
     } else {
-      ajustes = const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 3,
+      ajustes = LocationSettings(
+        accuracy: perfil.calidad == CalidadGps.alta
+            ? LocationAccuracy.high
+            : LocationAccuracy.medium,
+        distanceFilter: perfil.distanciaMinima,
       );
     }
     return Geolocator.getPositionStream(locationSettings: ajustes)
-        .map(_convertir);
+        .map(convertirPosicion);
   }
 
   @override
@@ -143,20 +167,4 @@ class ServicioUbicacionGeolocator implements ServicioUbicacion {
 
   @override
   Future<void> abrirAjustesUbicacion() => Geolocator.openLocationSettings();
-
-  PuntoGps _convertir(Position posicion) {
-    final ahora = DateTime.now();
-    final tiempo = posicion.timestamp;
-    return PuntoGps(
-      latitud: posicion.latitude,
-      longitud: posicion.longitude,
-      tiempo: tiempo.isAfter(ahora.subtract(const Duration(minutes: 5)))
-          ? tiempo
-          : ahora,
-      altitud: posicion.altitude,
-      precision: posicion.accuracy,
-      velocidad: posicion.speed >= 0 ? posicion.speed : null,
-      rumbo: posicion.heading >= 0 ? posicion.heading : null,
-    );
-  }
 }

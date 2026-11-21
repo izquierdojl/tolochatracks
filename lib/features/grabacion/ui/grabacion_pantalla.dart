@@ -154,6 +154,7 @@ class _EnCurso extends StatelessWidget {
         : controlador.sinSenal
         ? 'Buscando señal GPS'
         : 'Grabando';
+    final precision = controlador.precisionActual;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -194,7 +195,9 @@ class _EnCurso extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        estadoTexto,
+                        precision == null
+                            ? estadoTexto
+                            : '$estadoTexto · ±${precision.toStringAsFixed(0)} m',
                         style: tema.textTheme.bodySmall?.copyWith(
                           color: tema.colorScheme.onSurfaceVariant,
                         ),
@@ -220,6 +223,18 @@ class _EnCurso extends StatelessWidget {
             texto:
                 'Aún no hay señal suficiente. Puedes seguir moviéndote; los '
                 'puntos se guardarán cuando el GPS mejore.',
+          ),
+        ],
+        if (!enPausa &&
+            !conError &&
+            !controlador.sinSenal &&
+            controlador.senalDebil) ...[
+          const SizedBox(height: 12),
+          _Banda(
+            icono: Icons.signal_cellular_alt,
+            texto:
+                'Señal débil: la distancia y la velocidad pueden ser '
+                'imprecisas.',
           ),
         ],
         if (enPausa) ...[

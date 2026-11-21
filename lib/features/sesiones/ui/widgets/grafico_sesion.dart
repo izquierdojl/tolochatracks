@@ -17,6 +17,15 @@ enum MetricaGrafico {
   final String etiqueta;
 }
 
+enum EjeX {
+  tiempo('Tiempo'),
+  distancia('Distancia');
+
+  const EjeX(this.etiqueta);
+
+  final String etiqueta;
+}
+
 class GraficoSesion extends StatefulWidget {
   const GraficoSesion({super.key, required this.estadisticas});
 
@@ -28,6 +37,11 @@ class GraficoSesion extends StatefulWidget {
 
 class _GraficoSesionState extends State<GraficoSesion> {
   MetricaGrafico _metrica = MetricaGrafico.distancia;
+  EjeX _ejeX = EjeX.tiempo;
+
+  bool get _admiteEjeX =>
+      _metrica == MetricaGrafico.velocidad ||
+      _metrica == MetricaGrafico.altitud;
 
   @override
   Widget build(BuildContext context) {
@@ -44,20 +58,50 @@ class _GraficoSesionState extends State<GraficoSesion> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
+            const SizedBox(height: 12),
+            _Desplegable<MetricaGrafico>(
+              clave: const Key('grafico-metrica'),
+              etiqueta: 'Métrica',
+              valor: _metrica,
+              opciones: [
                 for (final metrica in MetricaGrafico.values)
-                  ChoiceChip(
-                    label: Text(metrica.etiqueta),
-                    selected: _metrica == metrica,
-                    onSelected: (_) => setState(() => _metrica = metrica),
+                  DropdownMenuItem(
+                    value: metrica,
+                    child: Text(metrica.etiqueta),
                   ),
               ],
+              onChanged: (metrica) {
+                if (metrica == null) return;
+                setState(() {
+                  _metrica = metrica;
+                  if (metrica == MetricaGrafico.distancia ||
+                      metrica == MetricaGrafico.minutos) {
+                    _ejeX = EjeX.tiempo;
+                  }
+                });
+              },
             ),
-            const SizedBox(height: 8),
+            if (_metrica != MetricaGrafico.minutos) ...[
+              const SizedBox(height: 10),
+              _Desplegable<EjeX>(
+                clave: const Key('grafico-eje-x'),
+                etiqueta: 'Eje X',
+                valor: _ejeX,
+                ayuda: _metrica == MetricaGrafico.distancia
+                    ? 'La distancia se dibuja frente al tiempo.'
+                    : null,
+                opciones: [
+                  for (final eje in EjeX.values)
+                    DropdownMenuItem(value: eje, child: Text(eje.etiqueta)),
+                ],
+                onChanged: _admiteEjeX
+                    ? (eje) {
+                        if (eje != null) setState(() => _ejeX = eje);
+                      }
+                    : null,
+              ),
+            ],
+            const SizedBox(height: 10),
             Text(
               _descripcion,
               style: tema.textTheme.bodySmall?.copyWith(
@@ -74,41 +118,109 @@ class _GraficoSesionState extends State<GraficoSesion> {
 
   String get _descripcion => switch (_metrica) {
     MetricaGrafico.distancia => 'Distancia acumulada (km) por tiempo (min)',
-    MetricaGrafico.velocidad => 'Velocidad (km/h) por distancia (km)',
-    MetricaGrafico.altitud => 'Altitud (m) por distancia (km)',
+    MetricaGrafico.velocidad =>
+      _ejeX == EjeX.tiempo
+          ? 'Velocidad (km/h) por tiempo (min)'
+          : 'Velocidad (km/h) por distancia (km)',
+    MetricaGrafico.altitud =>
+      _ejeX == EjeX.tiempo
+          ? 'Altitud (m) por tiempo (min)'
+          : 'Altitud (m) por distancia (km)',
     MetricaGrafico.minutos => 'Metros recorridos en cada minuto',
   };
 
-  Widget _contenido() {
+  List<MuestraRuta> get _series {
     final estadisticas = widget.estadisticas;
-    final series = switch (_metrica) {
+    return switch (_metrica) {
       MetricaGrafico.distancia => estadisticas.serieDistancia,
-      MetricaGrafico.velocidad => estadisticas.serieVelocidad,
-      MetricaGrafico.altitud => estadisticas.serieAltitud,
+      MetricaGrafico.velocidad =>
+        _ejeX == EjeX.tiempo
+            ? estadisticas.serieVelocidadTiempo
+            : estadisticas.serieVelocidad,
+      MetricaGrafico.altitud =>
+        _ejeX == EjeX.tiempo
+            ? estadisticas.serieAltitudTiempo
+            : estadisticas.serieAltitud,
       MetricaGrafico.minutos => const <MuestraRuta>[],
     };
+  }
+
+  Widget _contenido() {
     if (_metrica == MetricaGrafico.minutos) {
-      return estadisticas.porMinuto.isEmpty
+      return widget.estadisticas.porMinuto.isEmpty
           ? const _SinDatos(
               mensaje: 'No hay minutos con movimiento para dibujar.',
             )
-          : _GraficoMinutos(datos: estadisticas.porMinuto);
+          : _GraficoMinutos(datos: widget.estadisticas.porMinuto);
     }
+    final series = _series;
     if (series.length < 2) {
-      return _SinDatos(
-        mensaje: _metrica == MetricaGrafico.altitud
-            ? 'Esta ruta no tiene datos de altitud.'
-            : 'No hay suficientes puntos para dibujar la gráfica.',
-      );
+      return _SinDatos(mensaje: _mensajeSinDatos);
     }
-    return _GraficoLinea(metrica: _metrica, muestras: series);
+    return _GraficoLinea(metrica: _metrica, ejeX: _ejeX, muestras: series);
+  }
+
+  String get _mensajeSinDatos => switch (_metrica) {
+    MetricaGrafico.altitud => 'Esta ruta no tiene datos de altitud.',
+    MetricaGrafico.velocidad => 'No hay datos de velocidad para este eje.',
+    MetricaGrafico.distancia || MetricaGrafico.minutos =>
+      'No hay suficientes puntos para dibujar la gráfica.',
+  };
+}
+
+class _Desplegable<T> extends StatelessWidget {
+  const _Desplegable({
+    required this.clave,
+    required this.etiqueta,
+    required this.valor,
+    required this.opciones,
+    required this.onChanged,
+    this.ayuda,
+  });
+
+  final Key clave;
+  final String etiqueta;
+  final T valor;
+  final List<DropdownMenuItem<T>> opciones;
+  final ValueChanged<T?>? onChanged;
+  final String? ayuda;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: etiqueta,
+        border: const OutlineInputBorder(),
+        isDense: true,
+        helperText: ayuda,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          key: clave,
+          value: valor,
+          isDense: true,
+          isExpanded: true,
+          items: opciones,
+          onChanged: onChanged,
+        ),
+      ),
+    );
   }
 }
 
 class _GraficoLinea extends StatelessWidget {
-  const _GraficoLinea({required this.metrica, required this.muestras});
+  const _GraficoLinea({
+    required this.metrica,
+    required this.ejeX,
+    required this.muestras,
+  });
 
   final MetricaGrafico metrica;
+  final EjeX ejeX;
   final List<MuestraRuta> muestras;
 
   @override
@@ -122,18 +234,30 @@ class _GraficoLinea extends StatelessWidget {
       MetricaGrafico.minutos => colores.ruta,
     };
     final maxX = muestras.map((m) => m.x).reduce(max);
-    final minY = muestras.map((m) => m.y).reduce(min);
-    final maxY = muestras.map((m) => m.y).reduce(max);
-    final rangoY = maxY - minY;
-    final margenY = rangoY > 0 ? rangoY * 0.12 : max(0.1, maxY.abs() * 0.05);
+    final minDato = muestras.map((m) => m.y).reduce(min);
+    final maxDato = muestras.map((m) => m.y).reduce(max);
+    final rango = maxDato - minDato;
+    final margen = metrica == MetricaGrafico.altitud
+        ? (rango > 0 ? rango * 0.12 : 5.0)
+        : (rango > 0 ? rango * 0.12 : max(0.1, maxDato.abs() * 0.05));
+    final desdeCero =
+        metrica == MetricaGrafico.distancia ||
+        metrica == MetricaGrafico.velocidad ||
+        metrica == MetricaGrafico.minutos;
+    final minY = desdeCero ? 0.0 : minDato - margen;
+    final maxY = maxDato <= 0
+        ? 1.0
+        : metrica == MetricaGrafico.altitud
+        ? maxDato + margen
+        : maxDato * 1.12;
     final intervaloX = _intervalo(maxX, 4);
-    final intervaloY = _intervalo(rangoY, 4);
+    final intervaloY = _intervalo(maxY - minY, 4);
     return LineChart(
       LineChartData(
         minX: 0,
         maxX: maxX <= 0 ? 1 : maxX,
-        minY: minY - margenY,
-        maxY: maxY + margenY,
+        minY: minY,
+        maxY: maxY,
         clipData: const FlClipData.all(),
         gridData: FlGridData(
           show: true,
@@ -214,13 +338,9 @@ class _GraficoLinea extends StatelessWidget {
     MetricaGrafico.minutos => '${valor.round()}',
   };
 
-  String _etiquetaX(double valor) => switch (metrica) {
-    MetricaGrafico.distancia =>
-      valor < 10 ? '${_numero(valor, 1)}′' : '${valor.round()}′',
-    MetricaGrafico.velocidad => _numero(valor, 1),
-    MetricaGrafico.altitud => _numero(valor, 1),
-    MetricaGrafico.minutos => '${valor.round()}',
-  };
+  String _etiquetaX(double valor) => ejeX == EjeX.tiempo
+      ? (valor < 10 ? '${_numero(valor, 1)}′' : '${valor.round()}′')
+      : _numero(valor, 1);
 }
 
 class _GraficoMinutos extends StatelessWidget {

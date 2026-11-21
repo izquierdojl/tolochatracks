@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tolochatracks/core/models/configuracion_parciales.dart';
+import 'package:tolochatracks/core/models/perfil_gps.dart';
 import 'package:tolochatracks/core/models/proveedor_mapas.dart';
 import 'package:tolochatracks/features/configuracion/data/configuracion_repositorio.dart';
 import 'package:tolochatracks/features/configuracion/ui/configuracion_controller.dart';
@@ -17,6 +19,8 @@ void main() {
     addTearDown(controlador.dispose);
     await controlador.cargar();
     expect(controlador.tema, ThemeMode.system);
+    expect(controlador.perfilGps, PerfilGps.equilibrada);
+    expect(controlador.parciales, ConfiguracionParciales.porDefecto);
     expect(controlador.tieneDirectorio, isFalse);
     expect(controlador.directorioExportacionNombre, isNull);
   });
@@ -104,5 +108,79 @@ void main() {
     expect(resultado, isNull);
     expect(controlador.tieneDirectorio, isTrue);
     expect(controlador.directorioExportacionNombre, 'Rutas');
+  });
+
+  test('persiste el perfil GPS entre instancias', () async {
+    SharedPreferences.setMockInitialValues({});
+    final servicio = ServicioExportacionFalso();
+    final primero = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: servicio,
+    );
+    addTearDown(primero.dispose);
+    await primero.cargar();
+    await primero.cambiarPerfilGps(PerfilGps.maxima);
+    expect(primero.perfilGps, PerfilGps.maxima);
+
+    final segundo = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: servicio,
+    );
+    addTearDown(segundo.dispose);
+    await segundo.cargar();
+    expect(segundo.perfilGps, PerfilGps.maxima);
+  });
+
+  test('una clave de perfil desconocida cae en Equilibrada', () async {
+    SharedPreferences.setMockInitialValues({
+      'config.gps.perfil': 'desconocido',
+    });
+    final controlador = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: ServicioExportacionFalso(),
+    );
+    addTearDown(controlador.dispose);
+    await controlador.cargar();
+    expect(controlador.perfilGps, PerfilGps.equilibrada);
+  });
+
+  test('persiste los parciales entre instancias', () async {
+    SharedPreferences.setMockInitialValues({});
+    final servicio = ServicioExportacionFalso();
+    final primero = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: servicio,
+    );
+    addTearDown(primero.dispose);
+    await primero.cargar();
+    expect(primero.parciales, ConfiguracionParciales.porDefecto);
+    await primero.cambiarParciales(
+      ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+    );
+
+    final segundo = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: servicio,
+    );
+    addTearDown(segundo.dispose);
+    await segundo.cargar();
+    expect(
+      segundo.parciales,
+      ConfiguracionParciales.tiempo(const Duration(minutes: 5)),
+    );
+  });
+
+  test('un valor de parciales inválido cae en 1 km', () async {
+    SharedPreferences.setMockInitialValues({
+      'config.parciales.modo': 'tiempo',
+      'config.parciales.valor': 1000,
+    });
+    final controlador = ConfiguracionController(
+      repositorio: ConfiguracionRepositorio(),
+      exportacion: ServicioExportacionFalso(),
+    );
+    addTearDown(controlador.dispose);
+    await controlador.cargar();
+    expect(controlador.parciales, ConfiguracionParciales.porDefecto);
   });
 }

@@ -6,6 +6,7 @@ import '../../../core/models/actividad.dart';
 import '../../../core/models/estadisticas_ruta.dart';
 import '../../../core/models/sesion.dart';
 import '../../../core/utilidades/formato.dart';
+import '../../compartir/ui/compartir_controller.dart';
 import '../../exportacion/ui/acciones_exportacion.dart';
 import '../../exportacion/ui/exportacion_controller.dart';
 import 'historial_controller.dart';
@@ -40,6 +41,7 @@ class _ListaHistorial extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final exportacion = context.watch<ExportacionController>();
+    final compartir = context.watch<CompartirController>();
     final sesiones = historial.sesionesFiltradas;
     return RefreshIndicator(
       onRefresh: historial.cargar,
@@ -122,6 +124,7 @@ class _ListaHistorial extends StatelessWidget {
               _TarjetaSesion(
                 sesion: sesion,
                 estadisticas: historial.estadisticas(sesion),
+                compartir: compartir,
               ),
               const SizedBox(height: 10),
             ],
@@ -161,83 +164,130 @@ class _Resumen extends StatelessWidget {
 }
 
 class _TarjetaSesion extends StatelessWidget {
-  const _TarjetaSesion({required this.sesion, required this.estadisticas});
+  const _TarjetaSesion({
+    required this.sesion,
+    required this.estadisticas,
+    required this.compartir,
+  });
 
   final Sesion sesion;
   final EstadisticasRuta estadisticas;
+  final CompartirController compartir;
 
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final color = sesion.actividad.color(context);
     final usaRitmo = sesion.actividad.usaRitmo;
+    final compartiendo = compartir.compartiendoSesion(sesion.id);
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => SesionDetallePantalla(sesion: sesion),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SesionDetallePantalla(sesion: sesion),
                 ),
-                child: Icon(sesion.actividad.icono, color: color),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+                child: Row(
                   children: [
-                    Text(
-                      sesion.actividad.etiqueta,
-                      style: tema.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(sesion.actividad.icono, color: color),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            sesion.actividad.etiqueta,
+                            style: tema.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            formatearFechaHora(sesion.inicio),
+                            style: tema.textTheme.bodySmall?.copyWith(
+                              color: tema.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 14,
+                            runSpacing: 4,
+                            children: [
+                              _Dato(
+                                valor: formatearDistanciaCorta(
+                                  estadisticas.distanciaMetros,
+                                ),
+                              ),
+                              _Dato(
+                                valor: formatearDuracion(sesion.duracionActiva),
+                              ),
+                              _Dato(
+                                valor: usaRitmo
+                                    ? formatearRitmo(
+                                        estadisticas.velocidadMedia,
+                                      )
+                                    : formatearVelocidad(
+                                        estadisticas.velocidadMedia,
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatearFechaHora(sesion.inicio),
-                      style: tema.textTheme.bodySmall?.copyWith(
-                        color: tema.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 14,
-                      runSpacing: 4,
-                      children: [
-                        _Dato(
-                          valor: formatearDistanciaCorta(
-                            estadisticas.distanciaMetros,
+                    if (sesion.exportada)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Tooltip(
+                          message: 'Exportada a disco',
+                          child: Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: tema.colorScheme.primary,
+                            semanticLabel: 'Exportada a disco',
                           ),
                         ),
-                        _Dato(valor: formatearDuracion(sesion.duracionActiva)),
-                        _Dato(
-                          valor: usaRitmo
-                              ? formatearRitmo(estadisticas.velocidadMedia)
-                              : formatearVelocidad(estadisticas.velocidadMedia),
-                        ),
-                      ],
+                      ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: tema.colorScheme.onSurfaceVariant,
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: tema.colorScheme.onSurfaceVariant,
-              ),
-            ],
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              tooltip: 'Compartir ruta',
+              onPressed: compartir.compartiendo
+                  ? null
+                  : () => _compartirSesion(context, sesion),
+              icon: compartiendo
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.share_outlined),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -371,7 +421,29 @@ Future<void> _exportarTodo(
   final disponible = await asegurarDirectorioExportacion(context);
   if (!disponible || !context.mounted) return;
   final exportacion = context.read<ExportacionController>();
-  final resultado = await exportacion.exportar(historial.sesionesFiltradas);
+  final sesiones = historial.sesionesFiltradas;
+  final resultado = await exportacion.exportar(sesiones);
   if (!context.mounted) return;
+  final guardado = await historial.actualizarExportadas(
+    intentadas: {for (final sesion in sesiones) sesion.id},
+    correctas: resultado?.sesionesExportadas ?? const <String>{},
+  );
+  if (!context.mounted) return;
+  if (resultado != null && !guardado) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No se pudo guardar el estado de exportación.'),
+      ),
+    );
+  }
   mostrarResultadoExportacion(context, resultado, exportacion.error);
+}
+
+Future<void> _compartirSesion(BuildContext context, Sesion sesion) async {
+  final compartir = context.read<CompartirController>();
+  final exito = await compartir.compartir(sesion);
+  if (!context.mounted || exito) return;
+  final mensaje = compartir.error ?? 'No se pudo compartir la ruta.';
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensaje)));
+  compartir.limpiarError();
 }

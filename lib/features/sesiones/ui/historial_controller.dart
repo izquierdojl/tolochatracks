@@ -69,6 +69,38 @@ class HistorialController extends ChangeNotifier {
     );
   }
 
+  Sesion? sesionPorId(String id) {
+    for (final sesion in _sesiones) {
+      if (sesion.id == id) return sesion;
+    }
+    return null;
+  }
+
+  Future<bool> actualizarExportadas({
+    required Set<String> intentadas,
+    required Set<String> correctas,
+  }) async {
+    var guardado = true;
+    final actualizadas = <Sesion>[];
+    for (final sesion in _sesiones) {
+      if (!intentadas.contains(sesion.id)) {
+        actualizadas.add(sesion);
+        continue;
+      }
+      final marcada = sesion.copiaCon(exportada: correctas.contains(sesion.id));
+      actualizadas.add(marcada);
+      if (marcada.exportada == sesion.exportada) continue;
+      try {
+        await repositorio.guardar(marcada);
+      } on Object {
+        guardado = false;
+      }
+    }
+    _sesiones = actualizadas;
+    notifyListeners();
+    return guardado;
+  }
+
   double get distanciaTotalMetros => sesionesFiltradas.fold(
     0,
     (total, sesion) => total + estadisticas(sesion).distanciaMetros,

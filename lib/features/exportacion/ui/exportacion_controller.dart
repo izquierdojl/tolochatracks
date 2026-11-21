@@ -40,13 +40,26 @@ class ExportacionController extends ChangeNotifier {
         for (final sesion in sesiones) ...archivosDeSesion(sesion),
       ];
       final resultado = await servicio.exportar(uri: uri, archivos: archivos);
-      _ultimoResultado = resultado;
-      if (!resultado.correcto) {
+      final correctos = resultado.archivosCorrectos.toSet();
+      final sesionesExportadas = <String>{
+        for (final sesion in sesiones)
+          if (correctos.contains(nombreGpx(sesion)) &&
+              correctos.contains(nombreJson(sesion)))
+            sesion.id,
+      };
+      final resultadoFinal = ResultadoExportacion(
+        exportados: resultado.exportados,
+        errores: resultado.errores,
+        archivosCorrectos: resultado.archivosCorrectos,
+        sesionesExportadas: sesionesExportadas,
+      );
+      _ultimoResultado = resultadoFinal;
+      if (!resultadoFinal.correcto) {
         _error =
-            'Se exportaron ${resultado.exportados} archivos, pero '
-            '${resultado.errores.length} fallaron.';
+            'Se exportaron ${resultadoFinal.exportados} archivos, pero '
+            '${resultadoFinal.errores.length} fallaron.';
       }
-      return resultado;
+      return resultadoFinal;
     } on PlatformException catch (excepcion) {
       _error = excepcion.message ?? 'No se pudo exportar a la carpeta elegida.';
       return null;
@@ -56,6 +69,31 @@ class ExportacionController extends ChangeNotifier {
     } finally {
       _exportando = false;
       notifyListeners();
+    }
+  }
+
+  Future<ResultadoBorrado?> borrarArchivosDeSesion(Sesion sesion) async {
+    final uri = configuracion.directorioExportacionUri;
+    if (uri == null || uri.isEmpty) {
+      _error = 'No hay carpeta de exportación configurada.';
+      notifyListeners();
+      return null;
+    }
+    _error = null;
+    try {
+      return await servicio.borrar(
+        uri: uri,
+        nombres: [nombreGpx(sesion), nombreJson(sesion)],
+      );
+    } on PlatformException catch (excepcion) {
+      _error =
+          excepcion.message ?? 'No se pudieron borrar los archivos exportados.';
+      notifyListeners();
+      return null;
+    } on Object {
+      _error = 'No se pudieron borrar los archivos exportados.';
+      notifyListeners();
+      return null;
     }
   }
 

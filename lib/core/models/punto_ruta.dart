@@ -10,6 +10,7 @@ class PuntoRuta {
     this.precision,
     this.velocidad,
     this.rumbo,
+    this.segmento = 0,
   });
 
   final double latitud;
@@ -19,8 +20,20 @@ class PuntoRuta {
   final double? precision;
   final double? velocidad;
   final double? rumbo;
+  final int segmento;
 
   bool get tieneAltitud => altitud != null;
+
+  PuntoRuta conSegmento(int segmento) => PuntoRuta(
+    latitud: latitud,
+    longitud: longitud,
+    tiempo: tiempo,
+    altitud: altitud,
+    precision: precision,
+    velocidad: velocidad,
+    rumbo: rumbo,
+    segmento: segmento,
+  );
 
   Map<String, Object?> aJson() => {
     'lat': latitud,
@@ -30,6 +43,7 @@ class PuntoRuta {
     if (precision != null) 'prec': precision,
     if (velocidad != null) 'vel': velocidad,
     if (rumbo != null) 'rumbo': rumbo,
+    if (segmento > 0) 'seg': segmento,
   };
 
   factory PuntoRuta.desdeJson(Map<String, Object?> json) {
@@ -53,7 +67,16 @@ class PuntoRuta {
       precision: _numero(json['prec']),
       velocidad: _numero(json['vel']),
       rumbo: _numero(json['rumbo']),
+      segmento: _entero(json['seg']),
     );
+  }
+
+  static int _entero(Object? valor) {
+    final numero = valor is num
+        ? valor.toInt()
+        : int.tryParse(valor?.toString() ?? '');
+    if (numero == null || numero < 0) return 0;
+    return numero;
   }
 
   static double? _numero(Object? valor) {

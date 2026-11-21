@@ -15,9 +15,10 @@ En desarrollo (versión `0.x`). Se publica **solo APK** en GitHub Releases.
 
 ## Funciones
 
-- **Grabación GPS**: actividades, inicio con un toque, pausa/reanudación, estadísticas en
-  vivo y servicio en primer plano para seguir con la pantalla apagada. La notificación
-  permite Pausar/Reanudar y Finalizar sin abrir la app.
+- **Grabación GPS**: actividades, inicio con un toque, pausa/reanudación, perfiles de
+  calidad GPS, aviso de señal débil, estadísticas en vivo y servicio en primer plano para
+  seguir con la pantalla apagada. La notificación permite Pausar/Reanudar y Finalizar sin
+  abrir la app.
 - **Borrador recuperable**: si la app se interrumpe, ofrece recuperar la sesión al volver.
 - **Historial**: rutas ordenadas por fecha, filtro por actividad y totales de distancia y
   tiempo.
@@ -28,8 +29,9 @@ En desarrollo (versión `0.x`). Se publica **solo APK** en GitHub Releases.
   aviso de que las teselas necesitan conexión.
 - **Exportación**: GPX 1.1 y JSON a la carpeta que elijas con el selector de Android; una
   ruta o todo el historial visible.
-- **Ajustes**: tema sistema/claro/oscuro, proveedor de mapas, carpeta de exportación y
-  exención de optimización de batería. Todo se guarda en el dispositivo.
+- **Ajustes**: tema sistema/claro/oscuro, proveedor de mapas, perfil de calidad GPS
+  (Ahorro/Equilibrada/Máxima), carpeta de exportación y exención de optimización de
+  batería. Todo se guarda en el dispositivo.
 
 ## Instalación
 

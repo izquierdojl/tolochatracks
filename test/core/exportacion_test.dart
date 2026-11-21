@@ -6,6 +6,7 @@ import 'package:tolochatracks/core/exportacion/gpx.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
+import 'package:tolochatracks/core/servicios/exportacion.dart';
 
 Sesion crearSesion({bool conAltitud = true}) {
   final inicio = DateTime(2026, 11, 20, 18, 30);
@@ -57,6 +58,76 @@ void main() {
     expect('<trkpt'.allMatches(gpx), hasLength(2));
   });
 
+  test('el GPX escribe un trkseg por segmento', () {
+    final inicio = DateTime(2026, 11, 20, 18, 30);
+    final sesion = Sesion(
+      id: 'segmentos',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 20),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+          segmento: 0,
+        ),
+        PuntoRuta(
+          latitud: 37.3892,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 5)),
+          precision: 5,
+          segmento: 0,
+        ),
+        PuntoRuta(
+          latitud: 37.3893,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 10)),
+          precision: 5,
+          segmento: 1,
+        ),
+        PuntoRuta(
+          latitud: 37.3894,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 15)),
+          precision: 5,
+          segmento: 1,
+        ),
+        PuntoRuta(
+          latitud: 37.3895,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 20)),
+          precision: 5,
+          segmento: 2,
+        ),
+      ],
+    );
+    final gpx = gpxDeSesion(sesion);
+    expect('<trkseg>'.allMatches(gpx), hasLength(3));
+    expect('</trkseg>'.allMatches(gpx), hasLength(3));
+    expect('<trkpt'.allMatches(gpx), hasLength(5));
+  });
+
+  test('una sesión antigua con hueco se exporta con dos segmentos', () {
+    final gpx = gpxDeSesion(
+      Sesion.desdeJson({
+        'formato': 2,
+        'id': 'antigua',
+        'actividad': 'correr',
+        'inicio': '2026-11-20T18:30:00.000Z',
+        'duracionSegundos': 120,
+        'puntos': [
+          {'lat': 37.3891, 'lon': -5.9845, 't': '2026-11-20T18:30:00.000Z'},
+          {'lat': 37.3892, 'lon': -5.9845, 't': '2026-11-20T18:30:30.000Z'},
+          {'lat': 37.3893, 'lon': -5.9845, 't': '2026-11-20T18:32:30.000Z'},
+        ],
+      }),
+    );
+    expect('<trkseg>'.allMatches(gpx), hasLength(2));
+    expect('<trkpt'.allMatches(gpx), hasLength(3));
+  });
+
   test('el JSON exportado se puede volver a leer', () {
     final sesion = crearSesion();
     final json = jsonDeSesion(sesion);
@@ -68,6 +139,41 @@ void main() {
     expect(reconstruida.id, sesion.id);
     expect(reconstruida.puntos, hasLength(2));
     expect(reconstruida.actividad, Actividad.senderismo);
+  });
+
+  test('la exportación omite los puntos descartados por precisión', () {
+    final inicio = DateTime(2026, 11, 20, 18, 30);
+    final sesion = Sesion(
+      id: 'descartado',
+      actividad: Actividad.correr,
+      inicio: inicio,
+      duracionActiva: const Duration(minutes: 5),
+      puntos: [
+        PuntoRuta(
+          latitud: 37.3891,
+          longitud: -5.9845,
+          tiempo: inicio,
+          precision: 5,
+        ),
+        PuntoRuta(
+          latitud: 37.3892,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 2)),
+          precision: 54.7,
+        ),
+        PuntoRuta(
+          latitud: 37.3893,
+          longitud: -5.9845,
+          tiempo: inicio.add(const Duration(minutes: 5)),
+          precision: 5,
+        ),
+      ],
+    );
+
+    final archivos = archivosDeSesion(sesion);
+    expect('<trkpt'.allMatches(archivos[0].contenido), hasLength(2));
+    final json = jsonDecode(archivos[1].contenido) as Map<String, Object?>;
+    expect(json['puntos'], hasLength(2));
   });
 
   test('los nombres son ASCII seguros y distinguen formatos', () {
@@ -100,6 +206,33 @@ void main() {
     expect(archivos[0].mime, 'application/gpx+xml');
     expect(archivos[1].mime, 'application/json');
     expect(archivos[0].contenido, contains('<gpx'));
-    expect(archivos[1].contenido, contains('"formato": 1'));
+    expect(archivos[1].contenido, contains('"formato": 3'));
+  });
+
+  test('el resultado de borrado es correcto solo sin errores ni ausentes', () {
+    expect(
+      const ResultadoBorrado(
+        borrados: 2,
+        noEncontrados: 0,
+        errores: [],
+      ).correcto,
+      isTrue,
+    );
+    expect(
+      const ResultadoBorrado(
+        borrados: 1,
+        noEncontrados: 1,
+        errores: [],
+      ).correcto,
+      isFalse,
+    );
+    expect(
+      const ResultadoBorrado(
+        borrados: 1,
+        noEncontrados: 0,
+        errores: ['gpx: no se pudo borrar'],
+      ).correcto,
+      isFalse,
+    );
   });
 }

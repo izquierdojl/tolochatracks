@@ -1,0 +1,8 @@
+tipo: bug
+id: a508b400
+titulo: "corrige la distancia y la traza al reanudar tras una pausa"
+autor:
+  nombre: "izquierdojl"
+  email: "jlizquierdo@jlizquierdo.com"
+fecha: "2026-11-21T14:11:48+01:00"
+branch: dev

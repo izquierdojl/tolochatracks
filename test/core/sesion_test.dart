@@ -45,6 +45,30 @@ void main() {
     expect(reconstruida.puntos.last.precision, isNull);
   });
 
+  test('la marca de exportación sobrevive al JSON', () {
+    final marcada = sesion.copiaCon(exportada: true);
+    final reconstruida = Sesion.desdeJson(marcada.aJson());
+
+    expect(reconstruida.exportada, isTrue);
+    expect(reconstruida.formato, formatoSesionActual);
+  });
+
+  test('una sesión antigua sin exportada se trata como no exportada', () {
+    final json = Map<String, Object?>.from(sesion.aJson())..remove('exportada');
+
+    expect(Sesion.desdeJson(json).exportada, isFalse);
+  });
+
+  test('copiaCon conserva los datos y actualiza la marca', () {
+    final copia = sesion.copiaCon(exportada: true);
+
+    expect(copia.id, sesion.id);
+    expect(copia.puntos, sesion.puntos);
+    expect(copia.exportada, isTrue);
+    expect(copia.formato, formatoSesionActual);
+    expect(sesion.exportada, isFalse);
+  });
+
   test('el id es único y seguro para un nombre de archivo', () {
     final otro = Sesion.generarId(inicio);
     expect(sesion.id, isNot(otro));
@@ -93,5 +117,102 @@ void main() {
     expect(Actividad.senderismo.usaRitmo, isTrue);
     expect(Actividad.bicicleta.usaRitmo, isFalse);
     expect(Actividad.otras.usaRitmo, isFalse);
+  });
+
+  test('el segmento sobrevive al JSON y se omite cuando es cero', () {
+    final conSegmento = PuntoRuta(
+      latitud: 37.3891,
+      longitud: -5.9845,
+      tiempo: inicio.add(const Duration(minutes: 5)),
+      segmento: 2,
+    );
+    final json = conSegmento.aJson();
+    expect(json['seg'], 2);
+    expect(PuntoRuta.desdeJson(json).segmento, 2);
+
+    final sinSegmento = PuntoRuta(
+      latitud: 37.3891,
+      longitud: -5.9845,
+      tiempo: inicio,
+    );
+    expect(sinSegmento.aJson().containsKey('seg'), isFalse);
+    expect(PuntoRuta.desdeJson(sinSegmento.aJson()).segmento, 0);
+  });
+
+  test('un seg inválido se trata como cero', () {
+    final json = {
+      'lat': 37.3891,
+      'lon': -5.9845,
+      't': '2026-11-20T18:30:00.000Z',
+      'seg': -4,
+    };
+    expect(PuntoRuta.desdeJson(json).segmento, 0);
+  });
+
+  test('formato 2 infiere segmentos en huecos de más de 60 s', () {
+    final json = Map<String, Object?>.from(sesion.aJson())
+      ..['formato'] = 2
+      ..['puntos'] = [
+        {'lat': 37.3891, 'lon': -5.9845, 't': '2026-11-20T18:30:00.000Z'},
+        {'lat': 37.3892, 'lon': -5.9845, 't': '2026-11-20T18:30:30.000Z'},
+        {'lat': 37.3893, 'lon': -5.9845, 't': '2026-11-20T18:32:30.000Z'},
+      ];
+    final reconstruida = Sesion.desdeJson(json);
+    expect(reconstruida.formato, 2);
+    expect(reconstruida.puntos.map((p) => p.segmento), [0, 0, 1]);
+  });
+
+  test('formato 3 respeta los segmentos guardados', () {
+    final json = Map<String, Object?>.from(sesion.aJson())
+      ..['formato'] = 3
+      ..['puntos'] = [
+        {
+          'lat': 37.3891,
+          'lon': -5.9845,
+          't': '2026-11-20T18:30:00.000Z',
+          'seg': 3,
+        },
+        {
+          'lat': 37.3892,
+          'lon': -5.9845,
+          't': '2026-11-20T18:32:30.000Z',
+          'seg': 4,
+        },
+      ];
+    final reconstruida = Sesion.desdeJson(json);
+    expect(reconstruida.formato, 3);
+    expect(reconstruida.puntos.map((p) => p.segmento), [3, 4]);
+  });
+
+  test('copiaCon conserva los segmentos y escribe el formato actual', () {
+    final conSegmentos = Sesion(
+      id: sesion.id,
+      actividad: sesion.actividad,
+      inicio: sesion.inicio,
+      duracionActiva: sesion.duracionActiva,
+      puntos: [
+        sesion.puntos.first.conSegmento(0),
+        sesion.puntos.last.conSegmento(1),
+      ],
+    );
+    final copia = conSegmentos.copiaCon(exportada: true);
+    expect(copia.formato, formatoSesionActual);
+    expect(copia.puntos.map((p) => p.segmento), [0, 1]);
+  });
+
+  test('el borrador conserva los segmentos al reconstruirse', () {
+    final borrador = Sesion(
+      id: sesion.id,
+      actividad: sesion.actividad,
+      inicio: sesion.inicio,
+      duracionActiva: const Duration(minutes: 5),
+      puntos: [
+        sesion.puntos.first.conSegmento(0),
+        sesion.puntos.last.conSegmento(1),
+      ],
+    );
+    final reconstruido = Sesion.desdeJson(borrador.aJson());
+    expect(reconstruido.abierta, isTrue);
+    expect(reconstruido.puntos.map((p) => p.segmento), [0, 1]);
   });
 }

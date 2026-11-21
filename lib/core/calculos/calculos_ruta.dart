@@ -1,14 +1,16 @@
 import 'dart:math';
 
+import '../models/actividad.dart';
+import '../models/configuracion_parciales.dart';
 import '../models/estadisticas_ruta.dart';
+import '../models/filtro_ruta.dart';
 import '../models/punto_ruta.dart';
 
 const _radioTierraMetros = 6371000.0;
-const _precisionMaximaMetros = 100.0;
-const _velocidadMaximaPlausible = 55.0;
 const _distanciaMinimaSegmentoMetros = 1.5;
 const _segundosMinimosJitter = 10.0;
 const _umbralDesnivelMetros = 2.0;
+const _epsilonCorteMetros = 0.1;
 
 double distanciaHaversine(PuntoRuta a, PuntoRuta b) {
   final lat1 = a.latitud * pi / 180;
@@ -21,8 +23,12 @@ double distanciaHaversine(PuntoRuta a, PuntoRuta b) {
   return 2 * _radioTierraMetros * asin(sqrt(h.clamp(0.0, 1.0)));
 }
 
-bool puntoAceptable(PuntoRuta? anterior, PuntoRuta punto) {
-  if (punto.precision != null && punto.precision! > _precisionMaximaMetros) {
+bool puntoAceptable(
+  PuntoRuta? anterior,
+  PuntoRuta punto, {
+  FiltroRuta filtro = const FiltroRuta(),
+}) {
+  if (punto.precision != null && punto.precision! > filtro.precisionMaxima) {
     return false;
   }
   if (anterior == null) return true;
@@ -30,10 +36,20 @@ bool puntoAceptable(PuntoRuta? anterior, PuntoRuta punto) {
       punto.tiempo.difference(anterior.tiempo).inMilliseconds / 1000.0;
   if (segundos <= 0) return false;
   final distancia = distanciaHaversine(anterior, punto);
-  return distancia / segundos <= _velocidadMaximaPlausible;
+  return distancia / segundos <= filtro.velocidadMaxima;
+}
+
+class _PuntoVentana {
+  const _PuntoVentana(this.tiempo, this.distancia);
+
+  final DateTime tiempo;
+  final double distancia;
 }
 
 class AcumuladorRuta {
+  AcumuladorRuta({this.filtro = const FiltroRuta()});
+
+  FiltroRuta filtro;
   double distanciaMetros = 0;
   double desnivelPositivo = 0;
   double desnivelNegativo = 0;
@@ -43,6 +59,8 @@ class AcumuladorRuta {
   int _puntosValidos = 0;
 
   PuntoRuta? _ultimo;
+  DateTime? _inicioSegmento;
+  final List<_PuntoVentana> _ventana = [];
   double? _altitudSuavizada;
   double? _altitudReferencia;
 
@@ -57,15 +75,20 @@ class AcumuladorRuta {
     altitudMaxima = null;
     _puntosValidos = 0;
     _ultimo = null;
+    _inicioSegmento = null;
+    _ventana.clear();
     _altitudSuavizada = null;
     _altitudReferencia = null;
   }
 
   void agregar(PuntoRuta punto) {
-    if (punto.precision != null && punto.precision! > _precisionMaximaMetros) {
+    if (punto.precision != null && punto.precision! > filtro.precisionMaxima) {
       return;
     }
-    if (_ultimo != null && !puntoAceptable(_ultimo, punto)) {
+    if (_ultimo != null && punto.segmento != _ultimo!.segmento) {
+      _ultimo = null;
+    }
+    if (_ultimo != null && !puntoAceptable(_ultimo, punto, filtro: filtro)) {
       return;
     }
 
@@ -82,16 +105,46 @@ class AcumuladorRuta {
     }
 
     final anterior = _ultimo;
-    if (anterior != null) {
+    if (anterior == null) {
+      _inicioSegmento = punto.tiempo;
+      _ventana
+        ..clear()
+        ..add(_PuntoVentana(punto.tiempo, distanciaMetros));
+    } else {
       final segundos =
           punto.tiempo.difference(anterior.tiempo).inMilliseconds / 1000.0;
       final distancia = distanciaHaversine(anterior, punto);
       final esJitter =
           distancia < _distanciaMinimaSegmentoMetros &&
           segundos < _segundosMinimosJitter;
-      if (!esJitter && segundos > 0) {
-        distanciaMetros += distancia;
-        velocidadMaxima = max(velocidadMaxima, distancia / segundos);
+      final valido = !esJitter && segundos > 0;
+      if (valido) distanciaMetros += distancia;
+      _ventana.add(_PuntoVentana(punto.tiempo, distanciaMetros));
+      while (_ventana.length > 1 &&
+          punto.tiempo.difference(_ventana[1].tiempo) >= filtro.ventana) {
+        _ventana.removeAt(0);
+      }
+      final inicio = _inicioSegmento;
+      final enCalentamiento =
+          inicio != null &&
+          filtro.calentamiento > Duration.zero &&
+          punto.tiempo.difference(inicio) < filtro.calentamiento;
+      if (valido && !enCalentamiento) {
+        final reportada = punto.velocidad;
+        final derivada = distancia / segundos;
+        final double velocidad;
+        if (reportada != null) {
+          velocidad = min(reportada, derivada);
+        } else {
+          final primera = _ventana.first;
+          final ventanaSegundos =
+              punto.tiempo.difference(primera.tiempo).inMilliseconds / 1000.0;
+          final minimo = filtro.ventana.inMilliseconds / 1000.0 * 0.8;
+          velocidad = ventanaSegundos >= minimo
+              ? (distanciaMetros - primera.distancia) / ventanaSegundos
+              : derivada;
+        }
+        velocidadMaxima = max(velocidadMaxima, velocidad);
       }
     }
     _ultimo = punto;
@@ -122,8 +175,11 @@ EstadisticasRuta calcularEstadisticas(
   required Duration duracionActiva,
   DateTime? inicio,
   DateTime? fin,
+  Actividad actividad = Actividad.otras,
+  ConfiguracionParciales parciales = ConfiguracionParciales.porDefecto,
 }) {
-  final acumulador = AcumuladorRuta();
+  final filtro = FiltroRuta.vistaSesion(actividad);
+  final acumulador = AcumuladorRuta(filtro: filtro);
   for (final punto in puntos) {
     acumulador.agregar(punto);
   }
@@ -136,12 +192,14 @@ EstadisticasRuta calcularEstadisticas(
   }
   if (duracionTotal.isNegative) duracionTotal = Duration.zero;
 
-  final validos = _puntosValidos(puntos);
+  final validos = _puntosValidos(puntos, filtro);
   final acumulados = _acumular(validos, inicioReal);
   final segundos = duracionActiva.inMilliseconds / 1000.0;
   final velocidadMedia = segundos > 0
       ? acumulador.distanciaMetros / segundos
       : 0.0;
+  final velocidad = _serieVelocidad(acumulados, filtro);
+  final altitud = _serieAltitud(acumulados);
 
   return EstadisticasRuta(
     distanciaMetros: acumulador.distanciaMetros,
@@ -154,22 +212,41 @@ EstadisticasRuta calcularEstadisticas(
     puntos: acumulador.puntosValidos,
     altitudMinima: acumulador.altitudMinima,
     altitudMaxima: acumulador.altitudMaxima,
-    parciales: _parciales(acumulados),
+    parciales: _parciales(acumulados, parciales),
     porMinuto: _porMinuto(acumulados),
     serieDistancia: _muestrear(_serieDistancia(acumulados)),
-    serieVelocidad: _muestrear(_serieVelocidad(acumulados)),
-    serieAltitud: _muestrear(_serieAltitud(acumulados)),
+    serieVelocidad: _muestrear(velocidad.porDistancia),
+    serieVelocidadTiempo: _muestrear(velocidad.porTiempo),
+    serieAltitud: _muestrear(altitud.porDistancia),
+    serieAltitudTiempo: _muestrear(altitud.porTiempo),
   );
 }
 
-List<PuntoRuta> _puntosValidos(List<PuntoRuta> puntos) {
+List<PuntoRuta> puntosValidosDeSesion(
+  List<PuntoRuta> puntos, {
+  Actividad actividad = Actividad.otras,
+  double precisionMaxima = 40,
+}) => _puntosValidos(
+  puntos,
+  FiltroRuta(
+    precisionMaxima: precisionMaxima,
+    velocidadMaxima: actividad.velocidadMaximaPlausible,
+  ),
+);
+
+List<PuntoRuta> _puntosValidos(List<PuntoRuta> puntos, FiltroRuta filtro) {
   final validos = <PuntoRuta>[];
   PuntoRuta? anterior;
   for (final punto in puntos) {
-    if (punto.precision != null && punto.precision! > _precisionMaximaMetros) {
+    if (anterior != null && punto.segmento != anterior.segmento) {
+      anterior = null;
+    }
+    if (punto.precision != null && punto.precision! > filtro.precisionMaxima) {
       continue;
     }
-    if (anterior != null && !puntoAceptable(anterior, punto)) continue;
+    if (anterior != null && !puntoAceptable(anterior, punto, filtro: filtro)) {
+      continue;
+    }
     validos.add(punto);
     anterior = punto;
   }
@@ -200,8 +277,9 @@ List<_PuntoAcumulado> _acumular(List<PuntoRuta> puntos, DateTime? inicio) {
   var distancia = 0.0;
   for (final punto in puntos.skip(1)) {
     final delta = punto.tiempo.difference(anterior.tiempo);
-    if (!delta.isNegative) tiempo += delta;
-    final segmento = distanciaHaversine(anterior, punto);
+    final cambiaSegmento = punto.segmento != anterior.segmento;
+    if (!cambiaSegmento && !delta.isNegative) tiempo += delta;
+    final segmento = cambiaSegmento ? 0.0 : distanciaHaversine(anterior, punto);
     final esJitter =
         segmento < _distanciaMinimaSegmentoMetros &&
         delta.inMilliseconds < _segundosMinimosJitter * 1000;
@@ -224,27 +302,66 @@ List<MuestraRuta> _serieDistancia(List<_PuntoAcumulado> acumulados) {
   return serie;
 }
 
-List<MuestraRuta> _serieVelocidad(List<_PuntoAcumulado> acumulados) {
-  final serie = <MuestraRuta>[];
+({List<MuestraRuta> porDistancia, List<MuestraRuta> porTiempo}) _serieVelocidad(
+  List<_PuntoAcumulado> acumulados,
+  FiltroRuta filtro,
+) {
+  if (acumulados.length < 2) {
+    return (porDistancia: const [], porTiempo: const []);
+  }
+  final porDistancia = <MuestraRuta>[];
+  final porTiempo = <MuestraRuta>[];
   double? suavizada;
+  var inicioSegmento = acumulados.first.tiempo;
   for (var i = 1; i < acumulados.length; i++) {
     final anterior = acumulados[i - 1];
     final actual = acumulados[i];
+    if (actual.punto.segmento != anterior.punto.segmento) {
+      inicioSegmento = actual.tiempo;
+    }
     final distancia = actual.distancia - anterior.distancia;
     final segundos = (actual.tiempo - anterior.tiempo).inMilliseconds / 1000.0;
     if (distancia <= 0 || segundos <= 0) continue;
-    final velocidad = distancia / segundos * 3.6;
-    suavizada = suavizada == null
-        ? velocidad
-        : suavizada + (velocidad - suavizada) * 0.35;
-    serie.add(MuestraRuta(actual.distancia / 1000, suavizada));
+    if (filtro.calentamiento > Duration.zero &&
+        actual.tiempo - inicioSegmento < filtro.calentamiento) {
+      continue;
+    }
+    final reportada = actual.punto.velocidad;
+    final double velocidad;
+    if (reportada != null) {
+      final derivada = distancia / segundos;
+      velocidad = min(reportada, derivada);
+    } else {
+      var j = i;
+      while (j > 0 &&
+          actual.tiempo - acumulados[j - 1].tiempo <= filtro.ventana &&
+          acumulados[j - 1].punto.segmento == actual.punto.segmento) {
+        j--;
+      }
+      final inicio = acumulados[j];
+      final ventanaSegundos =
+          (actual.tiempo - inicio.tiempo).inMilliseconds / 1000.0;
+      final minimo = filtro.ventana.inMilliseconds / 1000.0 * 0.8;
+      velocidad = ventanaSegundos >= minimo
+          ? (actual.distancia - inicio.distancia) / ventanaSegundos
+          : distancia / segundos;
+    }
+    final kmh = velocidad * 3.6;
+    suavizada = suavizada == null ? kmh : suavizada + (kmh - suavizada) * 0.35;
+    porDistancia.add(MuestraRuta(actual.distancia / 1000, suavizada));
+    porTiempo.add(MuestraRuta(actual.tiempo.inMilliseconds / 60000, suavizada));
   }
-  return serie;
+  return (porDistancia: porDistancia, porTiempo: porTiempo);
 }
 
-List<MuestraRuta> _serieAltitud(List<_PuntoAcumulado> acumulados) {
-  if (acumulados.length < 2) return const [];
-  final serie = <MuestraRuta>[];
+({List<MuestraRuta> porDistancia, List<MuestraRuta> porTiempo}) _serieAltitud(
+  List<_PuntoAcumulado> acumulados,
+) {
+  if (acumulados.length < 2) {
+    return (porDistancia: const [], porTiempo: const []);
+  }
+  final porDistancia = <MuestraRuta>[];
+  final porTiempo = <MuestraRuta>[];
   double? suavizada;
   for (final acumulado in acumulados) {
     final altitud = acumulado.punto.altitud;
@@ -252,17 +369,98 @@ List<MuestraRuta> _serieAltitud(List<_PuntoAcumulado> acumulados) {
     suavizada = suavizada == null
         ? altitud
         : suavizada + (altitud - suavizada) * 0.25;
-    serie.add(MuestraRuta(acumulado.distancia / 1000, suavizada));
+    porDistancia.add(MuestraRuta(acumulado.distancia / 1000, suavizada));
+    porTiempo.add(
+      MuestraRuta(acumulado.tiempo.inMilliseconds / 60000, suavizada),
+    );
   }
-  return serie;
+  return (porDistancia: porDistancia, porTiempo: porTiempo);
 }
 
-List<ParcialKm> _parciales(List<_PuntoAcumulado> acumulados) {
+class _Tramo {
+  const _Tramo({
+    required this.numero,
+    required this.inicioDistancia,
+    required this.finDistancia,
+    required this.inicioTiempo,
+    required this.finTiempo,
+    required this.completo,
+  });
+
+  final int numero;
+  final double inicioDistancia;
+  final double finDistancia;
+  final Duration inicioTiempo;
+  final Duration finTiempo;
+  final bool completo;
+}
+
+List<ParcialRuta> _parciales(
+  List<_PuntoAcumulado> acumulados,
+  ConfiguracionParciales configuracion,
+) {
   if (acumulados.length < 2) return const [];
   final distanciaTotal = acumulados.last.distancia;
-  if (distanciaTotal < 20) return const [];
+  final tiempoTotal = acumulados.last.tiempo;
+  if (configuracion.esDistancia) {
+    if (distanciaTotal < 20) return const [];
+  } else if (tiempoTotal < const Duration(seconds: 10)) {
+    return const [];
+  }
 
-  final parciales = <ParcialKm>[];
+  final tramos = configuracion.esDistancia
+      ? _tramosPorDistancia(acumulados, configuracion.pasoMetros)
+      : _tramosPorTiempo(acumulados, configuracion.valor);
+  if (tramos.isEmpty) return const [];
+
+  final sumas = List<double>.filled(tramos.length, 0);
+  final cuentas = List<int>.filled(tramos.length, 0);
+  var indiceTramo = 0;
+  for (final acumulado in acumulados) {
+    final valor = configuracion.esDistancia
+        ? acumulado.distancia
+        : acumulado.tiempo.inMilliseconds / 1000.0;
+    while (indiceTramo < tramos.length - 1) {
+      final fin = configuracion.esDistancia
+          ? tramos[indiceTramo].finDistancia
+          : tramos[indiceTramo].finTiempo.inMilliseconds / 1000.0;
+      if (valor < fin) break;
+      indiceTramo += 1;
+    }
+    final altitud = acumulado.punto.altitud;
+    if (altitud != null) {
+      sumas[indiceTramo] += altitud;
+      cuentas[indiceTramo] += 1;
+    }
+  }
+
+  final parciales = <ParcialRuta>[];
+  for (var i = 0; i < tramos.length; i++) {
+    final tramo = tramos[i];
+    final distancia = tramo.finDistancia - tramo.inicioDistancia;
+    final duracion = tramo.finTiempo - tramo.inicioTiempo;
+    final segundos = duracion.inMilliseconds / 1000;
+    parciales.add(
+      ParcialRuta(
+        numero: tramo.numero,
+        distanciaMetros: distancia < 0 ? 0 : distancia,
+        duracion: duracion.isNegative ? Duration.zero : duracion,
+        velocidadMedia: segundos > 0 && distancia > 0
+            ? distancia / segundos
+            : 0,
+        altitudMedia: cuentas[i] > 0 ? sumas[i] / cuentas[i] : null,
+        completo: tramo.completo,
+      ),
+    );
+  }
+  return _conDestacados(parciales);
+}
+
+List<_Tramo> _tramosPorDistancia(
+  List<_PuntoAcumulado> acumulados,
+  double paso,
+) {
+  final tramos = <_Tramo>[];
   var numero = 1;
   var inicioDistancia = 0.0;
   var inicioTiempo = Duration.zero;
@@ -271,27 +469,25 @@ List<ParcialKm> _parciales(List<_PuntoAcumulado> acumulados) {
     final anterior = acumulados[i - 1];
     final actual = acumulados[i];
     if (actual.distancia <= anterior.distancia) continue;
-    while (actual.distancia >= numero * 1000) {
-      final limite = numero * 1000.0;
+    while (actual.distancia >= numero * paso - _epsilonCorteMetros) {
+      final limite = numero * paso;
       final fraccion =
           ((limite - anterior.distancia) /
                   (actual.distancia - anterior.distancia))
               .clamp(0.0, 1.0);
-      final milisegundos =
-          anterior.tiempo.inMilliseconds +
-          (actual.tiempo.inMilliseconds - anterior.tiempo.inMilliseconds) *
-              fraccion;
-      final tiempo = Duration(milliseconds: milisegundos.round());
-      final duracion = tiempo - inicioTiempo;
-      final distancia = limite - inicioDistancia;
-      parciales.add(
-        ParcialKm(
+      final tiempo = _interpolarTiempo(
+        anterior.tiempo,
+        actual.tiempo,
+        fraccion,
+      );
+      tramos.add(
+        _Tramo(
           numero: numero,
-          distanciaMetros: distancia,
-          duracion: duracion,
-          velocidadMedia: duracion.inMilliseconds > 0
-              ? distancia / (duracion.inMilliseconds / 1000)
-              : 0,
+          inicioDistancia: inicioDistancia,
+          finDistancia: limite,
+          inicioTiempo: inicioTiempo,
+          finTiempo: tiempo,
+          completo: true,
         ),
       );
       numero += 1;
@@ -300,21 +496,105 @@ List<ParcialKm> _parciales(List<_PuntoAcumulado> acumulados) {
     }
   }
 
-  final restante = distanciaTotal - inicioDistancia;
+  final restante = acumulados.last.distancia - inicioDistancia;
   if (restante > 20) {
-    final duracion = acumulados.last.tiempo - inicioTiempo;
-    parciales.add(
-      ParcialKm(
+    tramos.add(
+      _Tramo(
         numero: numero,
-        distanciaMetros: restante,
-        duracion: duracion.isNegative ? Duration.zero : duracion,
-        velocidadMedia: duracion.inMilliseconds > 0
-            ? restante / (duracion.inMilliseconds / 1000)
-            : 0,
+        inicioDistancia: inicioDistancia,
+        finDistancia: acumulados.last.distancia,
+        inicioTiempo: inicioTiempo,
+        finTiempo: acumulados.last.tiempo,
+        completo: false,
       ),
     );
   }
-  return parciales;
+  return tramos;
+}
+
+List<_Tramo> _tramosPorTiempo(
+  List<_PuntoAcumulado> acumulados,
+  int pasoSegundos,
+) {
+  final tramos = <_Tramo>[];
+  var numero = 1;
+  var inicioDistancia = 0.0;
+  var inicioTiempo = Duration.zero;
+
+  for (var i = 1; i < acumulados.length; i++) {
+    final anterior = acumulados[i - 1];
+    final actual = acumulados[i];
+    final delta = actual.tiempo - anterior.tiempo;
+    if (delta <= Duration.zero) continue;
+    while (actual.tiempo.inMilliseconds >= numero * pasoSegundos * 1000) {
+      final limite = Duration(seconds: numero * pasoSegundos);
+      final fraccion =
+          ((limite.inMilliseconds - anterior.tiempo.inMilliseconds) /
+                  delta.inMilliseconds)
+              .clamp(0.0, 1.0);
+      final distancia =
+          anterior.distancia +
+          (actual.distancia - anterior.distancia) * fraccion;
+      tramos.add(
+        _Tramo(
+          numero: numero,
+          inicioDistancia: inicioDistancia,
+          finDistancia: distancia,
+          inicioTiempo: inicioTiempo,
+          finTiempo: limite,
+          completo: true,
+        ),
+      );
+      numero += 1;
+      inicioDistancia = distancia;
+      inicioTiempo = limite;
+    }
+  }
+
+  final restante = acumulados.last.tiempo - inicioTiempo;
+  if (restante >= const Duration(seconds: 10)) {
+    tramos.add(
+      _Tramo(
+        numero: numero,
+        inicioDistancia: inicioDistancia,
+        finDistancia: acumulados.last.distancia,
+        inicioTiempo: inicioTiempo,
+        finTiempo: acumulados.last.tiempo,
+        completo: false,
+      ),
+    );
+  }
+  return tramos;
+}
+
+Duration _interpolarTiempo(Duration inicio, Duration fin, double fraccion) {
+  final milisegundos =
+      inicio.inMilliseconds +
+      (fin.inMilliseconds - inicio.inMilliseconds) * fraccion;
+  return Duration(milliseconds: milisegundos.round());
+}
+
+List<ParcialRuta> _conDestacados(List<ParcialRuta> parciales) {
+  final completos = parciales.where((p) => p.completo).toList();
+  if (completos.length < 3) return parciales;
+  var maximo = 0.0;
+  var minimo = double.infinity;
+  for (final parcial in completos) {
+    if (parcial.velocidadMedia > maximo) maximo = parcial.velocidadMedia;
+    if (parcial.velocidadMedia < minimo) minimo = parcial.velocidadMedia;
+  }
+  if (maximo <= 0 || maximo - minimo < 1e-6) return parciales;
+  return [
+    for (final parcial in parciales)
+      if (!parcial.completo)
+        parcial
+      else if ((parcial.velocidadMedia - maximo).abs() < 1e-6)
+        parcial.copyWith(destacado: DestacadoParcial.masRapido)
+      else if ((parcial.velocidadMedia - minimo).abs() < 1e-6)
+        parcial.copyWith(destacado: DestacadoParcial.masLento)
+      else
+        parcial,
+  ];
 }
 
 List<DistanciaMinuto> _porMinuto(List<_PuntoAcumulado> acumulados) {
