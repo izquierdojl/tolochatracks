@@ -97,7 +97,7 @@ sesión local.
 
 ## Desarrollo
 
-Requisitos: Flutter estable (3.47.7 en CI), Dart y Node.js 22+ para la gobernanza.
+Requisitos: Flutter estable (3.50.1 en CI), Dart y Node.js 22+ para la gobernanza.
 
 ```bash
 flutter pub get

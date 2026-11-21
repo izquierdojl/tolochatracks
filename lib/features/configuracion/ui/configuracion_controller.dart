@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/models/configuracion_parciales.dart';
 import '../../../core/models/perfil_gps.dart';

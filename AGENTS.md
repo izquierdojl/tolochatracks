@@ -22,7 +22,8 @@ grabar y olvidarse del móvil.
 
 | Capa | Decisión |
 |---|---|
-| Framework | Flutter estable (versión fijada en CI: 3.47.7). |
+| Framework | Flutter estable (versión fijada en CI: 3.50.1). |
+| UI | `material_ui` (paquete oficial de Material) sobre Flutter; `flutter/material.dart` está obsoleto en 3.50. |
 | Lenguaje | Dart estricto con `flutter_lints`; `dart format` como formateador. |
 | Plataforma | **Solo Android (APK)**. No hay build de escritorio ni iOS/web. |
 | Estado | `provider` (suficiente para el alcance; sin gestores complejos). |
