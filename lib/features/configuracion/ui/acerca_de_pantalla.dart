@@ -152,10 +152,10 @@ class _AcercaDePantallaState extends State<AcercaDePantalla> {
               children: [
                 const ListTile(
                   leading: Icon(Icons.article_outlined),
-                  title: Text('Código público'),
+                  title: Text('Código con licencia MIT'),
                   subtitle: Text(
-                    'El código de TolochaTracks es público en GitHub. Consulta '
-                    'el repositorio para su licencia.',
+                    'El código de TolochaTracks se distribuye bajo licencia MIT. '
+                    'Consulta el archivo LICENSE del repositorio.',
                   ),
                 ),
                 const Divider(height: 1),

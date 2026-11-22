@@ -35,10 +35,11 @@ y SHALL abrirlo en el navegador sin bloquear la app si no hay navegador.
 
 ### Requirement: Licencia del código
 
-La pantalla SHALL indicar que el código es público en el repositorio y que la tipografía
-Inter se distribuye bajo SIL Open Font License 1.1.
+La pantalla SHALL indicar que el código de TolochaTracks se distribuye bajo licencia MIT
+y que la tipografía Inter se distribuye bajo SIL Open Font License 1.1.
 
 #### Scenario: Licencia visible
 
 - **WHEN** el usuario abre Acerca de
-- **THEN** puede leer la licencia del código y de la tipografía
+- **THEN** puede leer que el código usa licencia MIT y que la tipografía Inter usa SIL
+  Open Font License 1.1
