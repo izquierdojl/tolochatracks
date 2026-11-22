@@ -1,6 +1,6 @@
 {
   "name": "tolochatracks",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "description": "Registro rápido de rutas GPS: correr, senderismo, bicicleta y más (Flutter)",
   "engines": {
