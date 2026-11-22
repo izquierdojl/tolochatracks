@@ -7,8 +7,10 @@ import '../models/filtro_ruta.dart';
 import '../models/punto_ruta.dart';
 
 const _radioTierraMetros = 6371000.0;
-const _distanciaMinimaSegmentoMetros = 1.5;
-const _segundosMinimosJitter = 10.0;
+const _ventanaMovimiento = Duration(seconds: 12);
+const _desplazamientoNetoMinimoMetros = 2.5;
+const _relacionNetoRecorridoMinima = 0.6;
+const _velocidadMinimaMovimiento = 0.6;
 const _umbralDesnivelMetros = 2.0;
 const _epsilonCorteMetros = 0.1;
 
@@ -39,6 +41,42 @@ bool puntoAceptable(
   return distancia / segundos <= filtro.velocidadMaxima;
 }
 
+class _DetectorMovimiento {
+  final List<PuntoRuta> _ventana = [];
+
+  void iniciarSegmento(PuntoRuta punto) {
+    _ventana
+      ..clear()
+      ..add(punto);
+  }
+
+  void reiniciar() => _ventana.clear();
+
+  bool agregar(PuntoRuta punto) {
+    _ventana.add(punto);
+    _recortar(punto.tiempo);
+    if (_ventana.length < 2) return false;
+    final reportada = punto.velocidad;
+    if (reportada != null && reportada >= _velocidadMinimaMovimiento) {
+      return true;
+    }
+    final neto = distanciaHaversine(_ventana.first, punto);
+    if (neto < _desplazamientoNetoMinimoMetros) return false;
+    var recorrido = 0.0;
+    for (var i = 1; i < _ventana.length; i++) {
+      recorrido += distanciaHaversine(_ventana[i - 1], _ventana[i]);
+    }
+    return recorrido > 0 && neto / recorrido >= _relacionNetoRecorridoMinima;
+  }
+
+  void _recortar(DateTime ahora) {
+    while (_ventana.length > 2 &&
+        ahora.difference(_ventana.first.tiempo) > _ventanaMovimiento) {
+      _ventana.removeAt(0);
+    }
+  }
+}
+
 class _PuntoVentana {
   const _PuntoVentana(this.tiempo, this.distancia);
 
@@ -61,6 +99,7 @@ class AcumuladorRuta {
   PuntoRuta? _ultimo;
   DateTime? _inicioSegmento;
   final List<_PuntoVentana> _ventana = [];
+  final _DetectorMovimiento _movimiento = _DetectorMovimiento();
   double? _altitudSuavizada;
   double? _altitudReferencia;
 
@@ -77,6 +116,7 @@ class AcumuladorRuta {
     _ultimo = null;
     _inicioSegmento = null;
     _ventana.clear();
+    _movimiento.reiniciar();
     _altitudSuavizada = null;
     _altitudReferencia = null;
   }
@@ -107,6 +147,7 @@ class AcumuladorRuta {
     final anterior = _ultimo;
     if (anterior == null) {
       _inicioSegmento = punto.tiempo;
+      _movimiento.iniciarSegmento(punto);
       _ventana
         ..clear()
         ..add(_PuntoVentana(punto.tiempo, distanciaMetros));
@@ -114,10 +155,7 @@ class AcumuladorRuta {
       final segundos =
           punto.tiempo.difference(anterior.tiempo).inMilliseconds / 1000.0;
       final distancia = distanciaHaversine(anterior, punto);
-      final esJitter =
-          distancia < _distanciaMinimaSegmentoMetros &&
-          segundos < _segundosMinimosJitter;
-      final valido = !esJitter && segundos > 0;
+      final valido = segundos > 0 && _movimiento.agregar(punto);
       if (valido) distanciaMetros += distancia;
       _ventana.add(_PuntoVentana(punto.tiempo, distanciaMetros));
       while (_ventana.length > 1 &&
@@ -275,15 +313,17 @@ List<_PuntoAcumulado> _acumular(List<PuntoRuta> puntos, DateTime? inicio) {
   ];
   var anterior = puntos.first;
   var distancia = 0.0;
+  final movimiento = _DetectorMovimiento()..iniciarSegmento(puntos.first);
   for (final punto in puntos.skip(1)) {
     final delta = punto.tiempo.difference(anterior.tiempo);
     final cambiaSegmento = punto.segmento != anterior.segmento;
     if (!cambiaSegmento && !delta.isNegative) tiempo += delta;
     final segmento = cambiaSegmento ? 0.0 : distanciaHaversine(anterior, punto);
-    final esJitter =
-        segmento < _distanciaMinimaSegmentoMetros &&
-        delta.inMilliseconds < _segundosMinimosJitter * 1000;
-    if (!esJitter) distancia += segmento;
+    if (cambiaSegmento) {
+      movimiento.iniciarSegmento(punto);
+    } else if (delta > Duration.zero && movimiento.agregar(punto)) {
+      distancia += segmento;
+    }
     acumulados.add(
       _PuntoAcumulado(punto: punto, distancia: distancia, tiempo: tiempo),
     );

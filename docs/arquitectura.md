@@ -67,6 +67,10 @@ normalizan (por ejemplo, infiriendo segmentos en huecos largos).
    Máxima), que ajusta precisión, intervalo y distancia mínima.
 3. Los primeros segundos se usan como calentamiento para descartar posiciones malas.
 4. Cada punto pasa por el filtro de precisión y velocidad plausible de la actividad.
+   La distancia se acumula con un detector de movimiento por ventana de 10-12 s: exige
+   un desplazamiento neto suficiente y coherente con el recorrido, o una velocidad
+   reportada por el GPS. Así el muestreo denso no confunde pasos cortos con ruido y una
+   persona parada no suma oscilaciones.
 5. Al pausar se cierra el tramo, se cancela la suscripción y se libera el wake lock; al
    reanudar se abre un segmento nuevo para no unir la traza con una línea recta.
 6. El servicio en primer plano de tipo `location` mantiene la captura con la pantalla
@@ -87,6 +91,10 @@ la grabación. El wake lock se libera al pausar y se recupera al reanudar.
 - ritmo y velocidad según la actividad;
 - parciales por distancia o tiempo;
 - series para los gráficos de distancia, velocidad y altitud.
+
+La distancia total, las series, los parciales y la distancia por minuto usan el mismo
+detector de movimiento y la actividad de la sesión, de modo que el detalle, el historial
+y los resúmenes muestran las mismas cifras.
 
 La UI solo formatea los resultados. Los tests de cálculos no necesitan Flutter ni
 plugins.
