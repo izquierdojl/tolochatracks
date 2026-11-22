@@ -621,6 +621,7 @@ class _UltimaSesion extends StatelessWidget {
       duracionActiva: sesion.duracionActiva,
       inicio: sesion.inicio,
       fin: sesion.fin,
+      actividad: sesion.actividad,
     );
     return Card(
       child: ListTile(
@@ -704,6 +705,7 @@ Future<void> _mostrarResumen(
         duracionActiva: sesion.duracionActiva,
         inicio: sesion.inicio,
         fin: sesion.fin,
+        actividad: sesion.actividad,
       );
       return AlertDialog(
         title: const Row(

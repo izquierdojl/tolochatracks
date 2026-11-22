@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tolochatracks/core/calculos/calculos_ruta.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
@@ -34,6 +37,34 @@ Sesion sesion(
         altitud: 30,
         precision: 5,
       ),
+    ],
+  );
+}
+
+Sesion sesionConPico() {
+  final inicio = DateTime(2026, 11, 20, 18);
+  const latitud = 37.3891;
+  const longitud = -5.9845;
+  const metrosPorGradoLatitud = 111195.0;
+  final metrosPorGradoLongitud =
+      metrosPorGradoLatitud * cos(latitud * pi / 180);
+  PuntoRuta punto(double norte, double este, int segundos) => PuntoRuta(
+    latitud: latitud + norte / metrosPorGradoLatitud,
+    longitud: longitud + este / metrosPorGradoLongitud,
+    tiempo: inicio.add(Duration(seconds: segundos)),
+    precision: 5,
+  );
+  return Sesion(
+    id: 'pico',
+    actividad: Actividad.caminar,
+    inicio: inicio,
+    fin: inicio.add(const Duration(seconds: 21)),
+    duracionActiva: const Duration(seconds: 21),
+    puntos: [
+      punto(0, 0, 0),
+      punto(30, 0, 1),
+      punto(30, 50, 11),
+      punto(30, 60, 21),
     ],
   );
 }
@@ -166,5 +197,49 @@ void main() {
 
     expect(guardado, isFalse);
     expect(controlador.sesionPorId('correr')!.exportada, isTrue);
+  });
+
+  test('el historial aplica la actividad de la sesión', () async {
+    final pico = sesionConPico();
+    repositorio = RepositorioSesionesFalso(sesiones: [pico]);
+    controlador = HistorialController(repositorio: repositorio);
+    await controlador.cargar();
+
+    final historial = controlador.estadisticas(pico).distanciaMetros;
+    final comoOtras = calcularEstadisticas(
+      pico.puntos,
+      duracionActiva: pico.duracionActiva,
+      inicio: pico.inicio,
+      fin: pico.fin,
+      actividad: Actividad.otras,
+    ).distanciaMetros;
+
+    expect(historial, lessThan(comoOtras));
+  });
+
+  test('historial, detalle y resumen coinciden', () async {
+    final pico = sesionConPico();
+    repositorio = RepositorioSesionesFalso(sesiones: [pico]);
+    controlador = HistorialController(repositorio: repositorio);
+    await controlador.cargar();
+
+    final historial = controlador.estadisticas(pico).distanciaMetros;
+    final detalle = calcularEstadisticas(
+      pico.puntos,
+      duracionActiva: pico.duracionActiva,
+      inicio: pico.inicio,
+      fin: pico.fin,
+      actividad: pico.actividad,
+    ).distanciaMetros;
+    final resumen = calcularEstadisticas(
+      pico.puntos,
+      duracionActiva: pico.duracionActiva,
+      inicio: pico.inicio,
+      fin: pico.fin,
+      actividad: pico.actividad,
+    ).distanciaMetros;
+
+    expect(historial, closeTo(detalle, 0.01));
+    expect(resumen, closeTo(historial, 0.01));
   });
 }

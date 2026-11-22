@@ -65,6 +65,7 @@ class HistorialController extends ChangeNotifier {
         duracionActiva: sesion.duracionActiva,
         inicio: sesion.inicio,
         fin: sesion.fin,
+        actividad: sesion.actividad,
       ),
     );
   }

@@ -1,0 +1,8 @@
+tipo: bug
+id: 0373e781
+titulo: "corrige la distancia con muestreo GPS denso"
+autor:
+  nombre: "izquierdojl"
+  email: "jlizquierdo@jlizquierdo.com"
+fecha: "2026-11-22T19:33:08+01:00"
+branch: dev

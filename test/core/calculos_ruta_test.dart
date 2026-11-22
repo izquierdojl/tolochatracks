@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tolochatracks/core/calculos/calculos_ruta.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
@@ -6,6 +10,8 @@ import 'package:tolochatracks/core/models/estadisticas_ruta.dart';
 import 'package:tolochatracks/core/models/filtro_ruta.dart';
 import 'package:tolochatracks/core/models/perfil_gps.dart';
 import 'package:tolochatracks/core/models/punto_ruta.dart';
+
+const _metroPorGradoLatitud = 111195.0;
 
 PuntoRuta punto(
   double latitud,
@@ -24,6 +30,38 @@ PuntoRuta punto(
   segmento: segmento,
   velocidad: velocidad,
 );
+
+List<PuntoRuta> cargarFixture(String nombre) {
+  final contenido = File('test/fixtures/$nombre').readAsStringSync();
+  final json = jsonDecode(contenido) as Map<String, Object?>;
+  final puntos = (json['puntos'] as List).cast<Map<String, Object?>>();
+  return [for (final punto in puntos) PuntoRuta.desdeJson(punto)];
+}
+
+double recorridoGeometrico(List<PuntoRuta> puntos) {
+  var total = 0.0;
+  for (var i = 1; i < puntos.length; i++) {
+    total += distanciaHaversine(puntos[i - 1], puntos[i]);
+  }
+  return total;
+}
+
+List<PuntoRuta> caminata({
+  required DateTime inicio,
+  required double latitud,
+  required double longitud,
+  required double metrosPorSegundo,
+  required int segundos,
+  double? velocidad,
+}) => [
+  for (var i = 0; i < segundos; i++)
+    punto(
+      latitud + i * metrosPorSegundo / _metroPorGradoLatitud,
+      longitud,
+      inicio.add(Duration(seconds: i)),
+      velocidad: velocidad,
+    ),
+];
 
 void main() {
   final inicio = DateTime(2026, 11, 20, 18);
@@ -1195,5 +1233,230 @@ void main() {
         expect(cincoMinutos.parciales[1].distanciaMetros, closeTo(750, 5));
       },
     );
+  });
+
+  group('distancia con muestreo denso', () {
+    test('cuenta una caminata a 1,4 m/s con un punto por segundo', () {
+      final puntos = caminata(
+        inicio: inicio,
+        latitud: latSevilla,
+        longitud: lonSevilla,
+        metrosPorSegundo: 1.4,
+        segundos: 60,
+      );
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(seconds: 59),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(58 * 1.4, 0.5));
+    });
+
+    test('la velocidad reportada cuenta también el primer segmento', () {
+      final puntos = caminata(
+        inicio: inicio,
+        latitud: latSevilla,
+        longitud: lonSevilla,
+        metrosPorSegundo: 1.4,
+        segundos: 60,
+        velocidad: 1.4,
+      );
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(seconds: 59),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(59 * 1.4, 0.5));
+    });
+
+    test('cuenta un paseo lento de 0,8 m/s', () {
+      final puntos = caminata(
+        inicio: inicio,
+        latitud: latSevilla,
+        longitud: lonSevilla,
+        metrosPorSegundo: 0.8,
+        segundos: 120,
+      );
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(seconds: 119),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(92.8, 1));
+    });
+
+    test('no suma el ruido de una persona parada', () {
+      final puntos = [
+        for (var i = 0; i < 600; i++)
+          punto(
+            latSevilla + (i.isEven ? 0 : 2) / metroPorGradoLatitud,
+            lonSevilla,
+            inicio.add(Duration(seconds: i)),
+          ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 10),
+      );
+      expect(estadisticas.distanciaMetros, lessThan(1));
+    });
+
+    test('no suma ruido aleatorio parado', () {
+      final azar = Random(7);
+      final puntos = [
+        for (var i = 0; i < 600; i++)
+          punto(
+            latSevilla + (azar.nextDouble() * 6 - 3) / metroPorGradoLatitud,
+            lonSevilla,
+            inicio.add(Duration(seconds: i)),
+          ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(minutes: 10),
+      );
+      expect(estadisticas.distanciaMetros, lessThan(10));
+    });
+
+    test('el acumulador en vivo cuenta la caminata densa', () {
+      final puntos = caminata(
+        inicio: inicio,
+        latitud: latSevilla,
+        longitud: lonSevilla,
+        metrosPorSegundo: 1.4,
+        segundos: 60,
+      );
+      final acumulador = AcumuladorRuta();
+      for (final punto in puntos) {
+        acumulador.agregar(punto);
+      }
+      expect(acumulador.distanciaMetros, closeTo(58 * 1.4, 0.5));
+    });
+
+    test('total, serie y parciales coinciden', () {
+      final puntos = caminata(
+        inicio: inicio,
+        latitud: latSevilla,
+        longitud: lonSevilla,
+        metrosPorSegundo: 1.4,
+        segundos: 600,
+        velocidad: 1.4,
+      );
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(seconds: 599),
+        parciales: ConfiguracionParciales.distancia(100),
+      );
+      final sumaParciales = estadisticas.parciales.fold<double>(
+        0,
+        (total, parcial) => total + parcial.distanciaMetros,
+      );
+      expect(estadisticas.distanciaMetros, closeTo(599 * 1.4, 0.5));
+      expect(
+        estadisticas.serieDistancia.last.y * 1000,
+        closeTo(estadisticas.distanciaMetros, 0.5),
+      );
+      expect(sumaParciales, closeTo(estadisticas.distanciaMetros, 0.5));
+    });
+
+    test('reinicia la ventana al cambiar de segmento', () {
+      final puntos = [
+        for (var i = 0; i < 10; i++)
+          punto(
+            latSevilla + i * 1.4 / metroPorGradoLatitud,
+            lonSevilla,
+            inicio.add(Duration(seconds: i)),
+          ),
+        for (var i = 0; i < 10; i++)
+          punto(
+            latSevilla + (1000 + i * 1.4) / metroPorGradoLatitud,
+            lonSevilla,
+            inicio.add(Duration(seconds: 10 + i)),
+            segmento: 1,
+          ),
+      ];
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: const Duration(seconds: 19),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(22.4, 0.5));
+      expect(estadisticas.serieDistancia.last.x, closeTo(18 / 60, 0.01));
+    });
+
+    test('las paradas no suman y el movimiento se recupera', () {
+      final puntos = <PuntoRuta>[];
+      var metros = 0.0;
+      var segundo = 0;
+      for (var ciclo = 0; ciclo < 10; ciclo++) {
+        for (var i = 0; i < 60; i++) {
+          metros += 1.4;
+          puntos.add(
+            punto(
+              latSevilla + metros / metroPorGradoLatitud,
+              lonSevilla,
+              inicio.add(Duration(seconds: segundo)),
+            ),
+          );
+          segundo += 1;
+        }
+        for (var i = 0; i < 60; i++) {
+          puntos.add(
+            punto(
+              latSevilla + metros / metroPorGradoLatitud,
+              lonSevilla,
+              inicio.add(Duration(seconds: segundo)),
+            ),
+          );
+          segundo += 1;
+        }
+      }
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: Duration(seconds: segundo - 1),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(824.6, 2));
+    });
+
+    test('fixture real de 1 Hz con velocidad', () {
+      final puntos = cargarFixture('muestra_1hz.json');
+      final bruto = recorridoGeometrico(puntos);
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: puntos.last.tiempo.difference(puntos.first.tiempo),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(bruto, 0.5));
+    });
+
+    test('fixture real de 1 Hz sin velocidad usa la ventana', () {
+      final puntos = cargarFixture('muestra_1hz.json');
+      final sinVelocidad = [
+        for (final p in puntos)
+          PuntoRuta(
+            latitud: p.latitud,
+            longitud: p.longitud,
+            tiempo: p.tiempo,
+            altitud: p.altitud,
+            precision: p.precision,
+            rumbo: p.rumbo,
+            segmento: p.segmento,
+          ),
+      ];
+      final bruto = recorridoGeometrico(sinVelocidad);
+      final estadisticas = calcularEstadisticas(
+        sinVelocidad,
+        duracionActiva: sinVelocidad.last.tiempo.difference(
+          sinVelocidad.first.tiempo,
+        ),
+      );
+      expect(estadisticas.distanciaMetros, greaterThan(bruto * 0.99));
+      expect(estadisticas.distanciaMetros, lessThanOrEqualTo(bruto));
+    });
+
+    test('fixture de frecuencia baja', () {
+      final puntos = cargarFixture('muestra_6s.json');
+      final bruto = recorridoGeometrico(puntos);
+      final estadisticas = calcularEstadisticas(
+        puntos,
+        duracionActiva: puntos.last.tiempo.difference(puntos.first.tiempo),
+      );
+      expect(estadisticas.distanciaMetros, closeTo(bruto, 1));
+    });
   });
 }
