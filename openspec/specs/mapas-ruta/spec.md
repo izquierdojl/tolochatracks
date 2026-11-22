@@ -11,7 +11,8 @@ grabación cuando no hay conexión.
 La app SHALL dibujar la traza de una sesión sobre un mapa de teselas libres del proveedor
 elegido en Ajustes: OpenStreetMap, OpenTopoMap o CyclOSM. Si el usuario elige «Sin
 mapas», no se SHALL solicitar ninguna tesela y se mostrará un aviso en el área del mapa.
-Los marcadores de inicio y fin y la polilínea SHALL seguir mostrándose cuando haya teselas.
+Los marcadores de inicio y fin y las polilíneas de cada segmento SHALL seguir
+mostrándose cuando haya teselas. Las polilíneas SHALL NOT unir los extremos de una pausa.
 
 #### Scenario: Ruta con varios puntos
 
@@ -35,10 +36,17 @@ Los marcadores de inicio y fin y la polilínea SHALL seguir mostrándose cuando 
 - **THEN** el detalle y la grabación no solicitan teselas y muestran que los mapas están
   desactivados
 
+#### Scenario: Pausa intermedia
+
+- **WHEN** la sesión tiene dos segmentos separados por una pausa
+- **THEN** el mapa dibuja dos polilíneas y deja un hueco entre ellas, sin una línea recta
+  que cruce la pausa
+
 ### Requirement: Mapa durante la grabación
 
 La pantalla de grabación SHALL mostrar el mapa con los puntos capturados en cuanto exista
-al menos una posición; mientras se graba, SHALL seguir el último punto.
+al menos una posición; mientras se graba, SHALL seguir el último punto. Al reanudar tras
+una pausa SHALL comenzar una polilínea nueva sin unirla con el punto anterior a la pausa.
 
 #### Scenario: Primer punto capturado
 
@@ -50,6 +58,12 @@ al menos una posición; mientras se graba, SHALL seguir el último punto.
 - **WHEN** la grabación recibe puntos nuevos
 - **THEN** la polilínea se actualiza y el mapa sigue el punto actual sin bloquear los
   controles de pausa y finalización
+
+#### Scenario: Reanudación tras pausa
+
+- **WHEN** la grabación se reanuda después de una pausa
+- **THEN** el mapa empieza una polilínea nueva y no dibuja una línea hasta el último punto
+  anterior a la pausa
 
 ### Requirement: Atribución de OpenStreetMap
 

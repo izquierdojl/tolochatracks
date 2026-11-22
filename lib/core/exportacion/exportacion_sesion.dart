@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../calculos/calculos_ruta.dart';
 import '../models/sesion.dart';
 import '../servicios/exportacion.dart';
 import 'gpx.dart';
@@ -22,18 +23,38 @@ String nombreGpx(Sesion sesion) => '${nombreBaseSesion(sesion)}.gpx';
 
 String nombreJson(Sesion sesion) => '${nombreBaseSesion(sesion)}.json';
 
-List<ArchivoExportacion> archivosDeSesion(Sesion sesion) => [
-  ArchivoExportacion(
-    nombre: nombreGpx(sesion),
-    contenido: gpxDeSesion(sesion),
-    mime: 'application/gpx+xml',
-  ),
-  ArchivoExportacion(
-    nombre: nombreJson(sesion),
-    contenido: jsonDeSesion(sesion),
-    mime: 'application/json',
-  ),
-];
+List<ArchivoExportacion> archivosDeSesion(Sesion sesion) {
+  final valida = sesionValida(sesion);
+  return [
+    ArchivoExportacion(
+      nombre: nombreGpx(sesion),
+      contenido: gpxDeSesion(valida),
+      mime: 'application/gpx+xml',
+    ),
+    ArchivoExportacion(
+      nombre: nombreJson(sesion),
+      contenido: jsonDeSesion(valida),
+      mime: 'application/json',
+    ),
+  ];
+}
+
+Sesion sesionValida(Sesion sesion) {
+  final puntos = puntosValidosDeSesion(
+    sesion.puntos,
+    actividad: sesion.actividad,
+  );
+  if (puntos.length == sesion.puntos.length) return sesion;
+  return Sesion(
+    id: sesion.id,
+    actividad: sesion.actividad,
+    inicio: sesion.inicio,
+    fin: sesion.fin,
+    duracionActiva: sesion.duracionActiva,
+    puntos: puntos,
+    exportada: sesion.exportada,
+  );
+}
 
 String _ascii(String texto) {
   const reemplazos = {

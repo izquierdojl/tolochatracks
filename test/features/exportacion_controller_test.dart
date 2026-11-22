@@ -1,5 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tolochatracks/core/exportacion/exportacion_sesion.dart';
 import 'package:tolochatracks/core/models/actividad.dart';
 import 'package:tolochatracks/core/models/sesion.dart';
 import 'package:tolochatracks/features/configuracion/data/configuracion_repositorio.dart';
@@ -86,5 +88,95 @@ void main() {
     expect(resultado, isNull);
     expect(exportacion.error, contains('No hay rutas'));
     expect(servicio.archivos, isEmpty);
+  });
+
+  test('marca la sesión cuando se escriben los dos archivos', () async {
+    await configuracion.elegirDirectorioExportacion();
+    final sesion = sesionDePrueba();
+
+    final resultado = await exportacion.exportar([sesion]);
+
+    expect(resultado, isNotNull);
+    expect(resultado!.sesionesExportadas, {'exportar'});
+    expect(resultado.archivosCorrectos, hasLength(2));
+    expect(resultado.archivosCorrectos, contains(nombreGpx(sesion)));
+    expect(resultado.archivosCorrectos, contains(nombreJson(sesion)));
+  });
+
+  test('marca solo las sesiones con GPX y JSON completos', () async {
+    await configuracion.elegirDirectorioExportacion();
+    final una = sesionDePrueba(id: 'una');
+    final otra = sesionDePrueba(id: 'otra');
+    servicio.fallarNombres.add(nombreGpx(una));
+
+    final resultado = await exportacion.exportar([una, otra]);
+
+    expect(resultado!.errores, hasLength(1));
+    expect(resultado.sesionesExportadas, {'otra'});
+    expect(resultado.archivosCorrectos, contains(nombreJson(una)));
+    expect(resultado.archivosCorrectos, isNot(contains(nombreGpx(una))));
+  });
+
+  test('borra el GPX y el JSON de la sesión en la carpeta actual', () async {
+    await configuracion.elegirDirectorioExportacion();
+    final sesion = sesionDePrueba();
+
+    final resultado = await exportacion.borrarArchivosDeSesion(sesion);
+
+    expect(resultado, isNotNull);
+    expect(resultado!.correcto, isTrue);
+    expect(resultado.borrados, 2);
+    expect(servicio.nombresBorrados, [nombreGpx(sesion), nombreJson(sesion)]);
+  });
+
+  test('sin carpeta no intenta borrar archivos y explica', () async {
+    final resultado = await exportacion.borrarArchivosDeSesion(
+      sesionDePrueba(),
+    );
+
+    expect(resultado, isNull);
+    expect(exportacion.error, contains('carpeta'));
+    expect(servicio.nombresBorrados, isEmpty);
+  });
+
+  test('un permiso perdido deja un error al borrar', () async {
+    await configuracion.elegirDirectorioExportacion();
+    servicio.errorBorrado = PlatformException(
+      code: 'sin_permiso',
+      message: 'La carpeta ya no es accesible.',
+    );
+
+    final resultado = await exportacion.borrarArchivosDeSesion(
+      sesionDePrueba(),
+    );
+
+    expect(resultado, isNull);
+    expect(exportacion.error, 'La carpeta ya no es accesible.');
+  });
+
+  test('informa de archivos no encontrados sin fallar', () async {
+    await configuracion.elegirDirectorioExportacion();
+    servicio.noEncontrados = 1;
+
+    final resultado = await exportacion.borrarArchivosDeSesion(
+      sesionDePrueba(),
+    );
+
+    expect(resultado, isNotNull);
+    expect(resultado!.noEncontrados, 1);
+    expect(resultado.correcto, isFalse);
+  });
+
+  test('informa de errores parciales al borrar', () async {
+    await configuracion.elegirDirectorioExportacion();
+    servicio.erroresBorrado.add('gpx: no se pudo borrar');
+
+    final resultado = await exportacion.borrarArchivosDeSesion(
+      sesionDePrueba(),
+    );
+
+    expect(resultado, isNotNull);
+    expect(resultado!.errores, hasLength(1));
+    expect(resultado.correcto, isFalse);
   });
 }

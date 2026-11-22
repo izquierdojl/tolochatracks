@@ -1,120 +1,157 @@
 # TolochaTracks
 
-[![CI](https://github.com/izquierdojl/tolochatracks/actions/workflows/ci.yml/badge.svg)](https://github.com/izquierdojl/tolochatracks/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/izquierdojl/tolochatracks)](https://github.com/izquierdojl/tolochatracks/releases)
+<p align="center">
+  <img src="assets/branding/app_icon.png" width="96" alt="Icono de TolochaTracks">
+</p>
 
-App Android (Flutter) para registrar rutas GPS de forma rápida y sencilla: correr,
-caminar, senderismo, bicicleta y otras actividades. Graba con la pantalla apagada, guarda
-las sesiones en el dispositivo, las muestra sobre mapas libres, calcula estadísticas y
-permite exportarlas a GPX/JSON. La referencia de producto es la antigua app MyTracks de
-Google: abrir, pulsar grabar y olvidarse del móvil.
+<p align="center">
+  <strong>Graba tus rutas y olvídate del móvil.</strong><br>
+  Correr, caminar, senderismo, bicicleta y mucho más, con tus datos en tu bolsillo.
+</p>
 
-## Estado
+<p align="center">
+  <a href="https://github.com/izquierdojl/tolochatracks/actions/workflows/ci.yml"><img src="https://github.com/izquierdojl/tolochatracks/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/izquierdojl/tolochatracks/releases"><img src="https://img.shields.io/github/v/release/izquierdojl/tolochatracks" alt="Última versión"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-MIT-yellow.svg" alt="Licencia MIT"></a>
+</p>
 
-En desarrollo (versión `0.x`). Se publica **solo APK** en GitHub Releases.
+TolochaTracks es una app Android para registrar rutas GPS de forma rápida y sencilla.
+Abres, pulsas **Empezar** y te pones en marcha. La app graba aunque apagues la pantalla,
+guarda la ruta en el teléfono y te deja consultarla, exportarla o compartirla cuando
+quieras.
 
-## Funciones
+Está inspirada en la antigua MyTracks de Google: menos configuración, más camino.
 
-- **Grabación GPS**: actividades, inicio con un toque, pausa/reanudación, estadísticas en
-  vivo y servicio en primer plano para seguir con la pantalla apagada. La notificación
-  permite Pausar/Reanudar y Finalizar sin abrir la app.
-- **Borrador recuperable**: si la app se interrumpe, ofrece recuperar la sesión al volver.
-- **Historial**: rutas ordenadas por fecha, filtro por actividad y totales de distancia y
-  tiempo.
-- **Detalle**: distancia, duración, ritmo/velocidad, desnivel, altitudes, velocidad
-  máxima, gráficos de distancia, velocidad, altitud y metros por minuto, y parciales por
-  kilómetro.
-- **Mapas libres**: OpenStreetMap, OpenTopoMap, CyclOSM o sin mapas. Atribución visible y
-  aviso de que las teselas necesitan conexión.
-- **Exportación**: GPX 1.1 y JSON a la carpeta que elijas con el selector de Android; una
-  ruta o todo el historial visible.
-- **Ajustes**: tema sistema/claro/oscuro, proveedor de mapas, carpeta de exportación y
-  exención de optimización de batería. Todo se guarda en el dispositivo.
+## Capturas
+
+<p align="center">
+  <img src="docs/capturas/01-grabacion.png" width="180" alt="Pantalla para empezar una ruta">
+  <img src="docs/capturas/02-historial.png" width="180" alt="Historial de rutas">
+  <img src="docs/capturas/03-detalle.png" width="180" alt="Detalle de una ruta con estadísticas y gráficos">
+</p>
+<p align="center">
+  <img src="docs/capturas/04-mapa.png" width="180" alt="Ruta dibujada sobre un mapa libre">
+  <img src="docs/capturas/05-ajustes.png" width="180" alt="Ajustes de tema, mapas y calidad GPS">
+</p>
+
+<p align="center"><em>Capturas reales de la app en un Android de ejemplo.</em></p>
+
+## Qué puedes hacer
+
+### Grabar sin complicaciones
+
+- Elige la actividad y pulsa el botón redondo para empezar.
+- Pausa, reanuda y termina desde la propia app o desde la notificación, sin abrirla.
+- La grabación sigue con la pantalla apagada gracias al servicio en primer plano.
+- Tres perfiles de GPS —Ahorro, Equilibrada y Máxima— para elegir entre detalle y
+  batería.
+- Estadísticas en vivo: distancia, tiempo, ritmo o velocidad, altitud y desnivel.
+- Si la app se interrumpe, guarda un borrador y te ofrece recuperar la ruta al volver.
+
+### Consultar tus rutas
+
+- Historial ordenado por fecha, con filtro por actividad y totales de distancia y tiempo.
+- Detalle con distancia, duración, ritmo o velocidad, desnivel, altitud y velocidad
+  máxima.
+- Gráficos de distancia, velocidad, altitud y metros por minuto.
+- Parciales por kilómetro o por tiempo, configurables.
+- Cada ruta se puede exportar, compartir o borrar, también con sus archivos exportados.
+
+### Mapas libres, si los quieres
+
+- OpenStreetMap, OpenTopoMap, CyclOSM o **sin mapas**.
+- La ruta se dibuja sobre el mapa y la atribución está siempre visible.
+- Los mapas son opcionales: sin conexión, la grabación, el historial, las estadísticas y
+  la exportación siguen funcionando.
+
+### Llevarte tus datos
+
+- Exporta una ruta o todo el historial visible en **GPX 1.1** y **JSON**.
+- Elige la carpeta de destino con el selector de Android y cámbiala cuando quieras.
+- Comparte una ruta con el share sheet del teléfono.
 
 ## Instalación
 
-Descarga el APK desde la última release:
+Descarga la última versión:
 
-<https://github.com/izquierdojl/tolochatracks/releases/latest/download/tolochatracks.apk>
+<p align="center">
+  <a href="https://github.com/izquierdojl/tolochatracks/releases/latest/download/tolochatracks.apk"><strong>Descargar tolochatracks.apk</strong></a>
+</p>
 
-Al ser un APK fuera de Play Store, Android pedirá permitir la instalación desde el
-navegador o el gestor de archivos. Las actualizaciones se instalan encima sin
-desinstalar (misma firma de release).
+1. Abre el APK desde el navegador o el gestor de archivos.
+2. Si Android lo pide, permite la instalación desde esa aplicación.
+3. Acepta el aviso de instalación y abre TolochaTracks.
+
+Las actualizaciones se instalan encima sin desinstalar mientras se mantenga la misma
+firma. TolochaTracks no está en Play Store; las versiones se publican en
+[GitHub Releases](https://github.com/izquierdojl/tolochatracks/releases).
+
+**Requisitos:** Android 7.0 o superior (minSdk 24), GPS y, solo si quieres mapas,
+conexión a internet.
 
 ## Privacidad
 
-Las rutas se guardan únicamente en el dispositivo. No hay cuentas, telemetría ni
-servidores propios. La única red son las teselas del mapa libre elegido; puedes elegir
-«Sin mapas» y la grabación, el historial, las estadísticas y la exportación siguen
-funcionando. La exportación escribe solo en la carpeta que concedas con el selector del
-sistema.
+Tus rutas son tuyas:
 
-## Batería y segundo plano
+- Se guardan únicamente en el teléfono. No hay cuentas, telemetría ni servidores propios.
+- La única conexión a internet son las teselas del mapa que elijas. Puedes desactivarlas.
+- Exportar o compartir una ruta siempre es una acción tuya.
+- La app no descarga mapas en bloque ni envía tu posición a ningún servidor.
 
-La grabación usa un servicio en primer plano de tipo `location`, una notificación
-persistente con acciones y un wake lock parcial mientras dura la ruta. En Ajustes puedes
-permitir que Android no optimice la batería de la app; mejora la fiabilidad con la
-pantalla apagada a cambio de un consumo mayor. En fabricantes que cierran apps en segundo
-plano (Xiaomi, Huawei, Samsung…) también conviene permitir el inicio automático en los
-ajustes del sistema.
+Puedes leer los detalles en
+[Privacidad, permisos y mapas](docs/privacidad-y-mapas.md).
 
-No se solicita el permiso de ubicación en segundo plano: el servicio en primer plano es
-el que mantiene la captura. Se pide el permiso de notificaciones en Android 13+ para que
-la notificación sea visible.
+## Preguntas frecuentes
 
-El wake lock se libera al pausar y se recupera al reanudar. No cierres la app desde
-«Recientes» mientras grabas: el servicio se detiene y se conserva el borrador para
-recuperarlo al volver. Para rutas largas, deja la app en segundo plano y permite la
-exención de batería en Ajustes.
+**¿Necesito internet para usarla?**
+Solo para ver los mapas. La grabación, el historial, las estadísticas y la exportación
+funcionan sin conexión.
 
-## Mapas y atribución
+**¿Funciona con la pantalla apagada?**
+Sí. La grabación usa un servicio en primer plano y una notificación persistente. Para
+rutas largas, permite que Android no optimice la batería de TolochaTracks desde Ajustes.
 
-Los mapas son opcionales y utilizan servicios libres:
+**¿Por qué no está en Play Store?**
+Por ahora se distribuye como APK firmado desde GitHub Releases. Play Store está aplazada.
 
-- [OpenStreetMap](https://www.openstreetmap.org/copyright) — © OpenStreetMap contributors
-  (ODbL).
-- [OpenTopoMap](https://opentopomap.org/about) — © OpenTopoMap contributors, datos de
-  OpenStreetMap (ODbL) y SRTM.
-- [CyclOSM](https://www.cyclosm.org) — © CyclOSM contributors, datos de OpenStreetMap
-  (ODbL).
+**¿Cómo actualizo?**
+Descarga el APK nuevo e instálalo encima. No pierdes las rutas ni los ajustes.
 
-No se descargan mapas en bloque ni se envía la ruta a ningún servidor. Las peticiones de
-teselas se identifican con el paquete `com.izquierdojl.tolochatracks`.
+**¿Dónde están mis rutas?**
+En el almacenamiento privado de la app. Si quieres una copia, expórtalas a la carpeta que
+elijas en GPX o JSON.
 
-## Exportación
+**¿Puedo usar la app sin mapas?**
+Sí. En Ajustes elige «Sin mapas» y la app no hará ninguna petición de teselas.
 
-En Ajustes elige una carpeta (por ejemplo `Download/TolochaTracks`). Después puedes
-exportar desde el detalle de una ruta o con «Exportar todo» en el historial. Cada sesión
-genera:
+## Licencia
 
-- `tolochatracks_AAAAMMDD_HHmm_actividad_id.gpx` — GPX 1.1 con metadatos y puntos.
-- `tolochatracks_AAAAMMDD_HHmm_actividad_id.json` — copia completa de la sesión.
+El código de TolochaTracks se distribuye bajo **licencia MIT**. Puedes usarlo, modificarlo
+y compartirlo conservando el aviso de copyright. Consulta el archivo
+[`LICENSE`](LICENSE).
 
-Si un archivo falla, la app informa de los exportados y de los errores sin borrar la
-sesión local.
+Los datos de los mapas mantienen su licencia:
+[OpenStreetMap](https://www.openstreetmap.org/copyright) © OpenStreetMap contributors
+(ODbL), [OpenTopoMap](https://opentopomap.org/about) © OpenTopoMap · © OpenStreetMap
+contributors y [CyclOSM](https://www.cyclosm.org) © CyclOSM · © OpenStreetMap
+contributors. La tipografía Inter se distribuye bajo SIL Open Font License 1.1.
 
-## Desarrollo
+TolochaTracks no está afiliado a Google ni a MyTracks.
 
-Requisitos: Flutter estable (3.47.7 en CI), Dart y Node.js 22+ para la gobernanza.
+## Documentación técnica
 
-```bash
-flutter pub get
-npm install
-npm run verify                 # formato, análisis, tests y checks de OpenSpec
-flutter run -d <dispositivo>
-flutter build apk --release
-```
+La portada está pensada para usar la app. Si vas a desarrollar, publicar o auditar el
+proyecto, empieza por el [índice de documentación](docs/README.md):
 
-Firma de release: `android/key.properties` + keystore (en local o vía secretos
-`ANDROID_KEYSTORE_*` en CI). Nunca se commitean.
+- [Desarrollo](docs/desarrollo.md): entorno, comandos, estructura y flujo OpenSpec.
+- [Arquitectura](docs/arquitectura.md): capas, estado, persistencia y grabación.
+- [Exportación](docs/exportacion.md): GPX, JSON, SAF y errores.
+- [Releases](docs/releases.md): versionado semver, CI/CD y firma del APK.
+- [Privacidad y mapas](docs/privacidad-y-mapas.md): permisos, batería y atribución.
+- [AGENTS.md](AGENTS.md): constitución y reglas de gobernanza del proyecto.
 
-## OpenSpec y releases
+## Estado
 
-Todo cambio de comportamiento empieza como change en `openspec/changes/` creado con
-`scripts/new_change.sh <tipo> "<título>" [dev|feature]`. La configuración personalizada
-vive en `openspec/config.yaml` y está protegida por
-`scripts/check_openspec_config.sh`. Ver `AGENTS.md` para la constitución completa.
-
-Cada fusión en `dev` espera la CI del commit, calcula el bump semver según los commits
-convencionales y publica un APK firmado en GitHub Releases. `main` es la rama de
-producción y se actualiza con un PR `dev → main`.
+En desarrollo (versión `0.x`). Solo Android, distribuida como APK. Las funciones nuevas
+entran como changes de OpenSpec y cada fusión en `dev` publica una versión cuando la CI
+está en verde.

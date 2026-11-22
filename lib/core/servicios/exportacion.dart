@@ -26,12 +26,33 @@ class ArchivoExportacion {
 }
 
 class ResultadoExportacion {
-  const ResultadoExportacion({required this.exportados, required this.errores});
+  const ResultadoExportacion({
+    required this.exportados,
+    required this.errores,
+    this.archivosCorrectos = const [],
+    this.sesionesExportadas = const {},
+  });
 
   final int exportados;
   final List<String> errores;
+  final List<String> archivosCorrectos;
+  final Set<String> sesionesExportadas;
 
   bool get correcto => errores.isEmpty;
+}
+
+class ResultadoBorrado {
+  const ResultadoBorrado({
+    required this.borrados,
+    required this.noEncontrados,
+    required this.errores,
+  });
+
+  final int borrados;
+  final int noEncontrados;
+  final List<String> errores;
+
+  bool get correcto => errores.isEmpty && noEncontrados == 0;
 }
 
 abstract interface class ServicioExportacion {
@@ -40,6 +61,11 @@ abstract interface class ServicioExportacion {
   Future<ResultadoExportacion> exportar({
     required String uri,
     required List<ArchivoExportacion> archivos,
+  });
+
+  Future<ResultadoBorrado> borrar({
+    required String uri,
+    required List<String> nombres,
   });
 }
 
@@ -75,8 +101,33 @@ class ServicioExportacionCanal implements ServicioExportacion {
     });
     final exportados = resultado?['exportados'];
     final erroresRaw = resultado?['errores'];
+    final nombresRaw = resultado?['nombres'];
     return ResultadoExportacion(
       exportados: exportados is num ? exportados.toInt() : 0,
+      errores: erroresRaw is List
+          ? [for (final error in erroresRaw) error.toString()]
+          : const [],
+      archivosCorrectos: nombresRaw is List
+          ? [for (final nombre in nombresRaw) nombre.toString()]
+          : const [],
+    );
+  }
+
+  @override
+  Future<ResultadoBorrado> borrar({
+    required String uri,
+    required List<String> nombres,
+  }) async {
+    final resultado = await canal.invokeMapMethod<String, Object?>('borrar', {
+      'uri': uri,
+      'nombres': nombres,
+    });
+    final borrados = resultado?['borrados'];
+    final noEncontrados = resultado?['noEncontrados'];
+    final erroresRaw = resultado?['errores'];
+    return ResultadoBorrado(
+      borrados: borrados is num ? borrados.toInt() : 0,
+      noEncontrados: noEncontrados is num ? noEncontrados.toInt() : 0,
       errores: erroresRaw is List
           ? [for (final error in erroresRaw) error.toString()]
           : const [],

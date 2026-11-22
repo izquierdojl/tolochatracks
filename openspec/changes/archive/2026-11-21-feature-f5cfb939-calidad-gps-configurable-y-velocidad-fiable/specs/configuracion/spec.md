@@ -1,0 +1,60 @@
+# Spec Delta
+
+## MODIFIED Requirements
+
+### Requirement: Preferencias persistentes
+
+La app SHALL recordar el tema (sistema, claro u oscuro), el proveedor de mapas
+(OpenStreetMap, OpenTopoMap, CyclOSM o sin mapas), la carpeta de exportación y el perfil
+de calidad GPS (Ahorro, Equilibrada o Máxima) entre arranques; los valores por defecto
+SHALL ser tema del sistema, OpenStreetMap, sin carpeta y Equilibrada.
+
+#### Scenario: Cambiar el tema
+
+- **WHEN** el usuario elige Oscuro en Ajustes
+- **THEN** la app cambia inmediatamente y conserva la elección al reiniciar
+
+#### Scenario: Cambiar el proveedor de mapas
+
+- **WHEN** el usuario elige OpenTopoMap en Ajustes
+- **THEN** el mapa usa OpenTopoMap y la elección se conserva al reiniciar
+
+#### Scenario: Cambiar el perfil GPS
+
+- **WHEN** el usuario elige Máxima en Ajustes
+- **THEN** la siguiente grabación usa el perfil Máxima y la elección se conserva al
+  reiniciar
+
+#### Scenario: Primera apertura
+
+- **WHEN** no hay preferencias guardadas
+- **THEN** la app usa el tema del sistema, OpenStreetMap, sin carpeta y el perfil
+  Equilibrada
+
+### Requirement: Pantalla de Ajustes
+
+Ajustes SHALL permitir cambiar el tema, elegir el proveedor de mapas o desactivarlos,
+elegir o quitar la carpeta de exportación, elegir el perfil de calidad GPS (Ahorro,
+Equilibrada o Máxima) con una explicación del intercambio entre precisión y batería, y
+abrir la pantalla Acerca de, con textos en español y sin opciones que no funcionen.
+
+#### Scenario: Quitar la carpeta
+
+- **WHEN** el usuario pulsa quitar la carpeta
+- **THEN** la app olvida la URI y las siguientes exportaciones piden elegir una de nuevo
+
+#### Scenario: Acerca de
+
+- **WHEN** el usuario pulsa «Acerca de…»
+- **THEN** se abre la pantalla informativa
+
+#### Scenario: Elegir perfil GPS
+
+- **WHEN** el usuario abre la sección GPS y elige Máxima
+- **THEN** el perfil queda seleccionado y el texto explica que registra más puntos y
+  puede consumir más batería
+
+#### Scenario: Perfil por defecto
+
+- **WHEN** el usuario abre Ajustes sin haber elegido perfil
+- **THEN** aparece seleccionado Equilibrada

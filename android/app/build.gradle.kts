@@ -58,12 +58,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-    }
-}
-
 flutter {
     source = "../.."
 }

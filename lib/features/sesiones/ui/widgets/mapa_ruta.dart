@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -33,6 +33,22 @@ class _MapaRutaState extends State<MapaRuta> {
   List<LatLng> get _coordenadas => [
     for (final punto in widget.puntos) LatLng(punto.latitud, punto.longitud),
   ];
+
+  List<List<LatLng>> get _segmentos {
+    final segmentos = <List<LatLng>>[];
+    var actual = <LatLng>[];
+    int? segmento;
+    for (final punto in widget.puntos) {
+      if (segmento != null && punto.segmento != segmento) {
+        if (actual.isNotEmpty) segmentos.add(actual);
+        actual = <LatLng>[];
+      }
+      segmento = punto.segmento;
+      actual.add(LatLng(punto.latitud, punto.longitud));
+    }
+    if (actual.isNotEmpty) segmentos.add(actual);
+    return segmentos;
+  }
 
   @override
   void dispose() {
@@ -138,6 +154,7 @@ class _MapaRutaState extends State<MapaRuta> {
     }
 
     final coordenadas = _coordenadas;
+    final segmentos = _segmentos;
     final colores = context.coloresRuta;
     final inicio = coordenadas.first;
     final fin = coordenadas.last;
@@ -193,16 +210,18 @@ class _MapaRutaState extends State<MapaRuta> {
                   userAgentPackageName: _paqueteApp,
                   maxNativeZoom: widget.proveedor.maxNativeZoom,
                 ),
-                if (coordenadas.length > 1)
+                if (segmentos.any((segmento) => segmento.length > 1))
                   PolylineLayer(
                     polylines: [
-                      Polyline(
-                        points: coordenadas,
-                        strokeWidth: 4.5,
-                        color: colores.ruta,
-                        borderStrokeWidth: 1.5,
-                        borderColor: tema.colorScheme.surface,
-                      ),
+                      for (final segmento in segmentos)
+                        if (segmento.length > 1)
+                          Polyline(
+                            points: segmento,
+                            strokeWidth: 4.5,
+                            color: colores.ruta,
+                            borderStrokeWidth: 1.5,
+                            borderColor: tema.colorScheme.surface,
+                          ),
                     ],
                   ),
                 MarkerLayer(markers: marcadores),

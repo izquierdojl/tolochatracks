@@ -1,9 +1,9 @@
 name: tolochatracks
 description: "Registro rápido de rutas GPS: correr, senderismo, bicicleta y más."
 publish_to: 'none'
-version: 0.6.1+10
+version: 0.9.4+17
 environment:
-  sdk: ^3.13.5
+  sdk: ^3.14.0
 
 dependencies:
   flutter:
@@ -14,6 +14,7 @@ dependencies:
   geolocator: ^14.1.2
   intl: ^0.20.3
   latlong2: ^0.10.1
+  material_ui: ^1.11.1
   path: ^1.9.1
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6

@@ -40,6 +40,7 @@ app.*.map.json
 /android/app/release
 android/.gradle/
 android/.kotlin/
+android/build/
 android/local.properties
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 
